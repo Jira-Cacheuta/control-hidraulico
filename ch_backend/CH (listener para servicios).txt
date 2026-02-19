@@ -1,0 +1,199 @@
+import groovy.json.JsonBuilder
+import groovy.transform.Field
+import java.util.UUID
+
+// ── CONFIG ───────────────────────────────────────────────────────────────────
+@Field final String STATE_RED        = "🟥"
+@Field final String STATE_GREEN      = "🟩"
+@Field final String STATE_YELLOW     = "🟨"
+@Field final String SERVICE_TYPE     = "Servicio"
+@Field final Set<String> WEB_APP_ACCOUNT_IDS = [
+  "712020:f3e0dd5c-9713-4be7-91a5-fa349588b3aa"
+] as Set
+
+@Field final String PROB_PROJECT     = "PROB"
+@Field final String PROB_TYPE        = "Problema Hidraulico"
+@Field final String LINK_SERVICE     = "Problem/Incident"
+@Field final String LINK_EPIC        = "Relates"
+
+@Field final String CF_SECTOR        = "customfield_10615"
+@Field final String CF_EJECUTANTE    = "customfield_10714"
+
+@Field final String PROP_LOCK        = "sr_prob_lock"
+@Field final String PROP_CREATED     = "sr_prob_created"
+
+@Field final String DEDUPE_LABEL_PREFIX = "prob-epic-"
+def epicLabel = { String epicKey -> (DEDUPE_LABEL_PREFIX + epicKey).toLowerCase() }
+
+// ── LOG ──────────────────────────────────────────────────────────────────────
+@Field final String RUN = UUID.randomUUID().toString().substring(0,8)
+void LOG(String msg) { println("[run:${RUN}][Verif] ${msg}") }
+void AUD(String msg) { println("[AUDIT][run:${RUN}][Verif] ${msg}") }
+
+// ── HELPERS REST ─────────────────────────────────────────────────────────────
+def apiGet  = { String uri -> get(uri).asObject(Map).body as Map }
+def apiPost = { String uri, Object body ->
+  post(uri).header("Content-Type","application/json")
+           .body(new JsonBuilder(body).toString()).asObject(Map).body as Map
+}
+def apiPut = { String uri, Object body ->
+  put(uri).header("Content-Type","application/json")
+          .body(new JsonBuilder(body).toString()).asObject(Map).body as Map
+}
+
+// ✅ MIGRADO a /rest/api/3/search/jql
+def jqlFirstKey = { String jql ->
+  def r = apiPost("/rest/api/3/search/jql", [
+    jql       : jql,
+    maxResults: 1,
+    nextPageToken : null,
+    fields    : ["key","summary"]
+  ])
+  def arr = (r.issues ?: []) as List<Map>
+  arr ? arr[0].key as String : null
+}
+
+// ✅ MIGRADO a /rest/api/3/search/jql
+def jqlList = { String jql ->
+  def r = apiPost("/rest/api/3/search/jql", [
+    jql       : jql,
+    maxResults: 200,
+    nextPageToken : null,
+    fields    : ["summary"]
+  ])
+  (r.issues ?: []) as List<Map>
+}
+
+def getFieldIdByName = { String name ->
+  def arr = get('/rest/api/2/field').asObject(List).body as List<Map>
+  arr.find { it.name == name }?.id
+}
+def getIssueTypeIdByName = { String name ->
+  def arr = get('/rest/api/2/issuetype').asObject(List).body as List<Map>
+  arr.find { it.name == name }?.id
+}
+def ensureLink = { String typeName, String a, String b ->
+  def links = (apiGet("/rest/api/2/issue/${a}?fields=issuelinks")?.fields?.issuelinks as List<Map>) ?: []
+  def exists = links.any { l -> l.type?.name == typeName && ((l.inwardIssue?.key == b) || (l.outwardIssue?.key == b)) }
+  if (!exists) {
+    post('/rest/api/2/issueLink')
+      .header('Content-Type','application/json')
+      .body([ type:[name:typeName], inwardIssue:[key:a], outwardIssue:[key:b] ])
+      .asObject(Map)
+  }
+}
+
+// ── Issue properties (lock) ──────────────────────────────────────────────────
+boolean hasIssueProperty(String issueKey, String propKey) {
+  try { get("/rest/api/2/issue/${issueKey}/properties/${propKey}").asString().status == 200 } catch (ignored) { false }
+}
+def putIssueProperty(String issueKey, String propKey, Map value) {
+  put("/rest/api/2/issue/${issueKey}/properties/${propKey}")
+    .header("Content-Type","application/json")
+    .body(new JsonBuilder(value).toString())
+    .asString()
+}
+def deleteIssueProperty(String issueKey, String propKey) {
+  try { delete("/rest/api/2/issue/${issueKey}/properties/${propKey}").asString() } catch (ignored) {}
+}
+def withLock(String issueKey, String propKey, Closure body) {
+  if (hasIssueProperty(issueKey, propKey)) { LOG("🔒 Lock presente en ${issueKey}. Skip."); return }
+  try {
+    putIssueProperty(issueKey, propKey, [lockedAt:new Date().format("yyyy-MM-dd'T'HH:mm:ssXXX"), runId:RUN])
+    body.call()
+  } finally {
+    deleteIssueProperty(issueKey, propKey)
+  }
+}
+
+// ── DESCRIPCIÓN ──────────────────────────────────────────────────────────────
+def bracketName = { String s ->
+  def m = (s ?: '') =~ /\[([^\]]+)\]/
+  m ? (m[0][1] as String) : (s ?: '')
+}
+def listNonGreenServiceSummaries = { String epicKey ->
+  def jql = """
+    project = CH AND issuetype = "${SERVICE_TYPE}"
+    AND "Epic Link" = "${epicKey}" AND status != "${STATE_GREEN}"
+  """.stripIndent().replaceAll("\\s+"," ")
+  jqlList(jql).collect { it.fields.summary as String }
+}
+def buildAlertDesc = { String epicKey, String currentServiceSummaryOrNull ->
+  def items = listNonGreenServiceSummaries(epicKey)
+  if (currentServiceSummaryOrNull) items += [ currentServiceSummaryOrNull ]
+  def bullets = items.collect { "• " + bracketName(it) }.unique()
+  "Alerta por mal funcionamiento de servicio/s:\n" + bullets.join("\n")
+}
+
+// ── LISTENER ─────────────────────────────────────────────────────────────────
+def issueKey = event.issue.key
+def expanded = apiGet("/rest/api/2/issue/${issueKey}?fields=issuetype,status,summary&expand=changelog")
+
+// Solo Servicios
+if ((expanded?.fields?.issuetype?.name as String) != SERVICE_TYPE) { LOG("⏭️ No es Servicio: ${issueKey}"); return }
+
+// Cambio de estado (desde el changelog del evento)
+def statusChange = changelog.items.find { it.field == "status" }
+if (!statusChange) { LOG("⏭️ Sin cambio de estado: ${issueKey}"); return }
+def newStatus = statusChange.get("toString")
+if (!(newStatus in [STATE_RED, STATE_YELLOW])) { LOG("⏭️ No es 🟥/🟨: ${issueKey}"); return }
+
+// Autor del history que contiene el cambio a newStatus
+def histories = (expanded?.changelog?.histories as List<Map>) ?: []
+def targetHist = histories.findAll { h -> ((h.items as List<Map>) ?: []).any { it.field == 'status' && it.toString == newStatus } }
+                 ?.max { it.created }
+def author = targetHist?.author
+def isApp  = (author?.accountType == 'app' || ((author?.displayName ?: "").toLowerCase().contains('scriptrunner')))
+def isWebApp = (author?.accountId && WEB_APP_ACCOUNT_IDS.contains(author.accountId as String))
+LOG("🔔 ${issueKey} → ${newStatus} por ${author?.displayName ?: '∅'} (${isApp ? 'app' : 'usuario'})")
+if (isApp && !isWebApp) { LOG("🔁 Cambio hecho por app (no web) → skip para evitar loop."); return }
+
+def epicLinkId = getFieldIdByName("Epic Link") ?: "customfield_10014"
+def svcFields  = apiGet("/rest/api/2/issue/${issueKey}?fields=${epicLinkId},${CF_SECTOR},summary")?.fields ?: [:]
+def epicKey        = svcFields[epicLinkId] as String
+def sectorValue    = svcFields[CF_SECTOR]   // puede ser null
+def serviceSummary = svcFields.summary as String
+if (!epicKey) { LOG("⏭️ Servicio sin EPIC: ${issueKey}"); return }
+
+def epicSummary = apiGet("/rest/api/2/issue/${epicKey}?fields=summary")?.fields?.summary as String
+def desc        = buildAlertDesc(epicKey, serviceSummary)
+
+withLock(epicKey, PROP_LOCK) {
+  // Si ya hay cualquier PROB abierto para el EPIC, reutilizo (actualizo desc + vínculos)
+  def anyOpen = jqlFirstKey("""
+    project = ${PROB_PROJECT} AND issuetype = "${PROB_TYPE}"
+    AND statusCategory != Done
+    AND ( issue in linkedIssues("${epicKey}","relates to") OR labels = "${epicLabel(epicKey)}" )
+    ORDER BY created ASC
+  """.stripIndent().replaceAll("\\s+"," "))
+
+  if (anyOpen) {
+    apiPut("/rest/api/2/issue/${anyOpen}", [ fields: [ description: desc ] ])
+    ensureLink(LINK_SERVICE, anyOpen, issueKey)
+    ensureLink(LINK_EPIC,    anyOpen, epicKey)
+    AUD("Actualizado ${anyOpen} (desc + vínculos) — ya había PROB abierto para ${epicKey}.")
+    return
+  }
+
+  // Si NO hay ninguno abierto → crear “Verificar …”
+  def typeId = getIssueTypeIdByName(PROB_TYPE)
+  def fields = [
+    project         : [ key: PROB_PROJECT ],
+    issuetype       : [ id: typeId ],
+    summary         : "Verificar ${epicSummary}",
+    description     : desc,
+    labels          : [ epicLabel(epicKey), "auto" ],
+    (CF_EJECUTANTE) : [[ value: "Jira automatizacion" ]]
+  ]
+  if (sectorValue) fields[CF_SECTOR] = sectorValue
+
+  def created = apiPost('/rest/api/2/issue', [fields: fields])
+  def key = created?.key as String
+  if (key) {
+    ensureLink(LINK_SERVICE, key, issueKey)
+    ensureLink(LINK_EPIC,    key, epicKey)
+    AUD("🆕 Creado ${key} 'Verificar ${epicSummary}' (descItems=${desc.readLines().findAll{it.startsWith('•')}.size()}) 🔗+${issueKey}")
+  } else {
+    LOG("⚠️ No se pudo crear el PROB para ${epicKey}")
+  }
+}

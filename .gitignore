@@ -1,0 +1,20 @@
+# Dependencias
+node_modules/
+
+# Build del frontend (se genera en el servidor con npm run build)
+ch_web/dist/
+
+# Secretos y configuración local (NUNCA subir a un repo público)
+.env
+.env.local
+.env.*.local
+ch_backend/.env
+
+# Logs y temporales
+*.log
+logs/
+.DS_Store
+
+# IDE (opcional; descomenta si no querés subir esta carpeta)
+# .vscode/
+# .idea/
