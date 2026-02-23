@@ -1,5 +1,5 @@
 import { Box, Container, Heading, Text, useToast, Flex, Divider, useBreakpointValue, Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody, ModalFooter, Button, SimpleGrid, Badge, HStack, FormControl, FormLabel, Select, Input, Textarea, Stack, Spinner } from '@chakra-ui/react'
-import ReactFlow, { Background, Controls, MiniMap, useNodesState, useEdgesState } from 'reactflow'
+import ReactFlow, { Background, useNodesState, useEdgesState } from 'reactflow'
 import { nodeTypes } from './nodes/CustomNodes'
 import type { Connection, Edge, Node } from 'reactflow'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -5418,27 +5418,6 @@ function App() {
               nodeExtent={VIEW_BOUNDS}
             >
               <Background gap={16} color="#EDF2F7" />
-              <MiniMap
-                nodeColor="#4A90E2"
-                maskColor="rgba(0, 0, 0, 0.1)"
-                style={{
-                  width: 120,
-                  height: 80,
-                  position: 'absolute',
-                  bottom: 10,
-                  right: 10
-                }}
-              />
-              <Controls
-                style={{
-                  position: 'absolute',
-                  bottom: 10,
-                  left: 10
-                }}
-                showZoom={true}
-                showFitView={true}
-                showInteractive={false}
-              />
             </ReactFlow>
           </Box>
           </>
@@ -6014,27 +5993,6 @@ function App() {
               nodeExtent={VIEW_BOUNDS}
             >
               <Background gap={16} color="#EDF2F7" />
-              <MiniMap 
-                nodeColor="#4A90E2"
-                maskColor="rgba(0, 0, 0, 0.1)"
-                style={{ 
-                  width: 120, 
-                  height: 80,
-                  position: 'absolute',
-                  bottom: 10,
-                  right: 10
-                }}
-              />
-              <Controls 
-                style={{
-                  position: 'absolute',
-                  bottom: 10,
-                  left: 10
-                }}
-                showZoom={true}
-                showFitView={true}
-                showInteractive={false}
-              />
             </ReactFlow>
             )}
           </Box>
