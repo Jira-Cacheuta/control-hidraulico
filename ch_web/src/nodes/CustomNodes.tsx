@@ -496,7 +496,7 @@ export function CloudServiceNode({ data }: NodeProps) {
           ))}
         </text>
       </svg>
-      <StatusBadge status={data?.status} bottom={data?.statusBottom} top={data?.statusTop} />
+      <StatusBadge status={data?.status} bottom={data?.statusBottom ?? -16} top={data?.statusTop} />
       <Handle type="target" position={Position.Top} id="in-top" style={{ opacity: 0 }} />
     </div>
   )
