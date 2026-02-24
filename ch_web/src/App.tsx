@@ -864,6 +864,20 @@ const gruta3NodesInitial: Node[] = [
     position: { x: 295, y: 520 },
     draggable: false,
     data: { label: 'Abanico', issueKey: 'CH-930' }
+  },
+  {
+    id: 'gruta3-cañeria2',
+    type: 'pipeSegment',
+    position: { x: 500, y: 420 },
+    draggable: false,
+    data: { label: 'Cañería', issueKey: 'CH-695' }
+  },
+  {
+    id: 'gruta3-servicio2',
+    type: 'cloudService',
+    position: { x: 500, y: 520 },
+    draggable: false,
+    data: { issueKey: 'CH-696' }
   }
 ]
 
@@ -899,6 +913,24 @@ const gruta3EdgesInitial: Edge[] = [
     source: 'gruta3-ramal1',
     sourceHandle: 'out-bottom',
     target: 'gruta3-servicio1',
+    targetHandle: 'in-top',
+    type: 'straight',
+    style: { stroke: '#4A90E2', strokeWidth: 8, strokeLinecap: 'round' }
+  },
+  {
+    id: 'gruta3-puesto-cañeria2',
+    source: 'gruta3-puesto',
+    sourceHandle: 'out-bottom-right',
+    target: 'gruta3-cañeria2',
+    targetHandle: 'in-top',
+    type: 'straight',
+    style: { stroke: '#4A90E2', strokeWidth: 10 }
+  },
+  {
+    id: 'gruta3-cañeria2-servicio2',
+    source: 'gruta3-cañeria2',
+    sourceHandle: 'out-bottom',
+    target: 'gruta3-servicio2',
     targetHandle: 'in-top',
     type: 'straight',
     style: { stroke: '#4A90E2', strokeWidth: 8, strokeLinecap: 'round' }
@@ -4334,8 +4366,8 @@ function App() {
             nextData.issueKey = activePumpKey
             if (issueData.summary) nextData.summary = issueData.summary
           }
-          // Para nodos service y waveService: mostrar el summary de Jira como label
-          if ((node.type === 'service' || node.type === 'waveService') && issueData.summary) nextData.label = issueData.summary
+          // Para nodos service, waveService y cloudService: mostrar el summary de Jira como label
+          if ((node.type === 'service' || node.type === 'waveService' || node.type === 'cloudService') && issueData.summary) nextData.label = issueData.summary
           return { ...node, data: nextData }
         })
       setGrutaNodes(applyIssueData)
@@ -5387,38 +5419,47 @@ function App() {
             w="100%"
             h={diagramAreaHeight != null ? `${diagramAreaHeight}px` : '100%'}
             minH={diagramAreaHeight != null ? `${diagramAreaHeight}px` : '100dvh'}
+            display="flex"
+            flexDirection="column"
           >
-            <ReactFlow
-              nodeTypes={nodeTypes}
-              nodes={filteredActiveNodes}
-              edges={filteredActiveEdges}
-              onNodesChange={activeOnNodesChange}
-              onEdgesChange={activeOnEdgesChange}
-              onConnect={onConnect}
-              fitView
-              fitViewOptions={{
-                padding: 0.28,
-                includeHiddenNodes: true,
-                minZoom: 0.4,
-                maxZoom: 2
-              }}
-              onNodeClick={onNodeClick}
-              onEdgeClick={onEdgeClick}
-              style={{ width: '100%', height: '100%', position: 'absolute', inset: 0 }}
-              defaultViewport={{ x: 0, y: 0, zoom: 0.88 }}
-              nodesDraggable={false}
-              nodesConnectable={false}
-              elementsSelectable={false}
-              panOnDrag={true}
-              zoomOnScroll={true}
-              panOnScroll={false}
-              zoomOnPinch={true}
-              preventScrolling={false}
-              translateExtent={VIEW_BOUNDS}
-              nodeExtent={VIEW_BOUNDS}
-            >
-              <Background gap={16} color="#EDF2F7" />
-            </ReactFlow>
+            <Box flex={1} minH={0} position="relative">
+              <ReactFlow
+                nodeTypes={nodeTypes}
+                nodes={filteredActiveNodes}
+                edges={filteredActiveEdges}
+                onNodesChange={activeOnNodesChange}
+                onEdgesChange={activeOnEdgesChange}
+                onConnect={onConnect}
+                fitView
+                fitViewOptions={{
+                  padding: 0.28,
+                  includeHiddenNodes: true,
+                  minZoom: 0.4,
+                  maxZoom: 2
+                }}
+                onNodeClick={onNodeClick}
+                onEdgeClick={onEdgeClick}
+                style={{ width: '100%', height: '100%', position: 'absolute', inset: 0 }}
+                defaultViewport={{ x: 0, y: 0, zoom: 0.88 }}
+                nodesDraggable={false}
+                nodesConnectable={false}
+                elementsSelectable={false}
+                panOnDrag={true}
+                zoomOnScroll={true}
+                panOnScroll={false}
+                zoomOnPinch={true}
+                preventScrolling={false}
+                translateExtent={VIEW_BOUNDS}
+                nodeExtent={VIEW_BOUNDS}
+              >
+                <Background gap={16} color="#EDF2F7" />
+              </ReactFlow>
+            </Box>
+            {currentSystem === 'gruta1' && (
+              <Box flexShrink={0} p={2} px={3} bg="white" borderTopWidth="1px" borderColor="gray.200" fontSize="11px" lineHeight="1.4" color="gray.600">
+                <Text as="span">Cambiar de estado la bomba, el componente eléctrico o la cañería de succión de este sistema afecta al Sistema Hidro, para volver a funcionamiento el mismo debe volverse a funcionamiento el Sistema Hidro.</Text>
+              </Box>
+            )}
           </Box>
           </>
           )}
@@ -5963,37 +6004,46 @@ function App() {
               </Modal>
             </Box>
             ) : (
-            <ReactFlow
-              nodeTypes={nodeTypes}
-              nodes={filteredActiveNodes}
-              edges={filteredActiveEdges}
-              onNodesChange={activeOnNodesChange}
-              onEdgesChange={activeOnEdgesChange}
-              onConnect={onConnect}
-              fitView
-              fitViewOptions={{ 
-                padding: 0.28, 
-                includeHiddenNodes: true,
-                minZoom: 0.4,
-                maxZoom: 2
-              }}
-              onNodeClick={onNodeClick}
-              onEdgeClick={onEdgeClick}
-              style={{ width: '100%', height: '100%', position: 'absolute', inset: 0 }}
-              defaultViewport={{ x: 0, y: 0, zoom: 0.88 }}
-              nodesDraggable={false}
-              nodesConnectable={false}
-              elementsSelectable={false}
-              panOnDrag={true}
-              zoomOnScroll={true}
-              panOnScroll={false}
-              zoomOnPinch={true}
-              preventScrolling={false}
-              translateExtent={VIEW_BOUNDS}
-              nodeExtent={VIEW_BOUNDS}
-            >
-              <Background gap={16} color="#EDF2F7" />
-            </ReactFlow>
+            <Box position="absolute" inset={0} display="flex" flexDirection="column">
+              <Box flex={1} minH={0} position="relative">
+                <ReactFlow
+                  nodeTypes={nodeTypes}
+                  nodes={filteredActiveNodes}
+                  edges={filteredActiveEdges}
+                  onNodesChange={activeOnNodesChange}
+                  onEdgesChange={activeOnEdgesChange}
+                  onConnect={onConnect}
+                  fitView
+                  fitViewOptions={{
+                    padding: 0.28,
+                    includeHiddenNodes: true,
+                    minZoom: 0.4,
+                    maxZoom: 2
+                  }}
+                  onNodeClick={onNodeClick}
+                  onEdgeClick={onEdgeClick}
+                  style={{ width: '100%', height: '100%', position: 'absolute', inset: 0 }}
+                  defaultViewport={{ x: 0, y: 0, zoom: 0.88 }}
+                  nodesDraggable={false}
+                  nodesConnectable={false}
+                  elementsSelectable={false}
+                  panOnDrag={true}
+                  zoomOnScroll={true}
+                  panOnScroll={false}
+                  zoomOnPinch={true}
+                  preventScrolling={false}
+                  translateExtent={VIEW_BOUNDS}
+                  nodeExtent={VIEW_BOUNDS}
+                >
+                  <Background gap={16} color="#EDF2F7" />
+                </ReactFlow>
+              </Box>
+              {currentSystem === 'gruta1' && (
+                <Box flexShrink={0} p={2} px={3} bg="white" borderTopWidth="1px" borderColor="gray.200" fontSize="xs" lineHeight="1.4" color="gray.600">
+                  <Text as="span">Cambiar de estado la bomba, el componente eléctrico o la cañería de succión de este sistema afecta al Sistema Hidro, para volver a funcionamiento el mismo debe volverse a funcionamiento el Sistema Hidro.</Text>
+                </Box>
+              )}
+            </Box>
             )}
           </Box>
         </Flex>

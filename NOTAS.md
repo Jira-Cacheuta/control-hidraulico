@@ -323,3 +323,66 @@ flowchart LR
 - `ch_web/src/App.tsx`: `API_BASE_URL` en línea 9; si queda vacío, las peticiones van al mismo origen (mismo servidor).
 - `ch_backend/src/index.js`: punto donde añadir `express.static` y fallback para SPA antes de `app.listen`.
 - `ch_backend/.env`: referencia de variables a replicar en el servidor (nunca subir este archivo con datos reales al repo; crearlo a mano en el servidor).
+
+---
+
+# Resumen de la sesión de despliegue (feb 2026)
+
+Lo más importante de lo que hicimos hoy: repo en GitHub, instancia Lightsail, SSH, Node, PM2, clonado del proyecto, build, backend en producción y acceso por navegador.
+
+## Instancia y acceso SSH
+
+- **Instancia:** `control-hidraulico`, Ohio (us-east-2), Ubuntu 22.04 LTS, 1 GB RAM, 40 GB SSD.
+- **IP pública (Static IP):** `3.138.205.241` — usar esta para SSH y para abrir la web en el navegador.
+- **Llave SSH:** `LightsailDefaultKey-us-east-2.pem` (descargar desde Lightsail → Account → SSH keys → región Ohio). En Windows suele estar en `C:\Users\TU_USUARIO\Downloads\`.
+- **Conectarse por SSH (desde PowerShell o terminal de Cursor):**
+  ```powershell
+  ssh -i "C:\Users\augus\Downloads\LightsailDefaultKey-us-east-2.pem" ubuntu@3.138.205.241
+  ```
+- Si la sesión SSH se corta (`Connection reset`), no se pierde nada: volver a ejecutar el mismo comando. Node, PM2 y el código instalado/clonado siguen en el servidor.
+
+## Repositorio en GitHub
+
+- **Repo:** `https://github.com/Jira-Cacheuta/control-hidraulico` (organización Jira-Cacheuta). Código ya subido; `.env` nunca va al repo.
+
+## Lo que ya está hecho en el servidor (Fase 3 y 4)
+
+1. **Node.js 20** y **PM2** instalados (global con `sudo npm install -g pm2`).
+2. **Proyecto clonado:** `~/control-hidraulico` (contiene `ch_backend`, `ch_web`, etc.).
+3. **Archivo `.env`** creado a mano en `~/control-hidraulico/ch_backend/.env` (mismas variables que en local: PORT, JIRA_*). No está en GitHub; solo existe en el servidor.
+4. **Dependencias:** `npm install` en `ch_backend` y en `ch_web`.
+5. **Build del frontend:** `npm run build` en `ch_web` → se genera `ch_web/dist`.
+6. **Backend con PM2:** desde `~/control-hidraulico/ch_backend` se ejecutó `pm2 start src/index.js --name ch-backend`. El proceso se llama `ch-backend`.
+7. **PM2 al reinicio:** se ejecutó `pm2 startup` (el comando `sudo env PATH=...` que mostró PM2) y luego `pm2 save`. Así, al reiniciar la instancia, PM2 arranca y vuelve a levantar `ch-backend`.
+
+## Firewall (Lightsail)
+
+- En la instancia → pestaña **Networking** deben estar abiertos:
+  - **SSH (22)** para conectarse.
+  - **HTTP (80)** si el backend escucha en 80.
+  - Si el backend escucha en **4000**, hay que añadir una regla para el puerto **4000** (TCP) desde cualquier IPv4; si no, el navegador no puede conectar y da timeout.
+- URL de la web según puerto:
+  - Con **PORT=4000** y regla 4000 abierta: `http://3.138.205.241:4000`
+  - Con **PORT=80** (y regla 80 abierta): `http://3.138.205.241`
+
+## Pasar el backend a puerto 80 (opcional)
+
+Para entrar con `http://3.138.205.241` sin `:4000`:
+
+1. En el servidor (por SSH): `sudo setcap 'cap_net_bind_service=+ep' $(which node)`
+2. Editar `.env`: `nano ~/control-hidraulico/ch_backend/.env` → cambiar `PORT=4000` a `PORT=80` → guardar (Ctrl+O, Enter, Ctrl+X).
+3. Reiniciar: `pm2 restart ch-backend`
+4. Probar en el navegador: `http://3.138.205.241`. Opcional: quitar la regla del puerto 4000 en Lightsail si ya no se usa.
+
+## Comandos útiles en el servidor
+
+- **Ver procesos PM2:** `pm2 list` (muestra id, name, status, cpu, memory).
+- **Reiniciar el backend:** `pm2 restart ch-backend`
+- **Logs del backend:** `pm2 logs ch-backend`
+- **Salir de SSH:** `exit` o Ctrl+D.
+
+## Recordatorios rápidos
+
+- **Nano:** editor de texto en la terminal del servidor; Ctrl+O guarda, Ctrl+X sale.
+- **pm2 list:** la tabla muestra los procesos gestionados por PM2; “online” = corriendo.
+- Lo instalado (Node, PM2, paquetes npm, código clonado) persiste aunque te desconectes; solo hay que volver a conectar por SSH para seguir trabajando.
