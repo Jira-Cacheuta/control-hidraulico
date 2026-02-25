@@ -53,6 +53,7 @@ const SYSTEMS = [
 const SYSTEM_GROUPS = [
   { id: 'gruta', label: 'Gruta' },
   { id: 'parque', label: 'Parque' },
+  { id: 'servicios', label: 'Servicios' },
   { id: 'pozos', label: 'Pozos' },
   { id: 'control', label: 'Control' }
 ]
@@ -3817,6 +3818,44 @@ const pozoLuisaEdgesInitial: Edge[] = [
   { id: 'pozoLuisa-puesto-cañeria', source: 'pozoLuisa-puesto', sourceHandle: 'out-bottom-center', target: 'pozoLuisa-cañeria', targetHandle: 'in-top', type: 'straight', style: { stroke: '#4A90E2', strokeWidth: 10 } }
 ]
 
+/** Todos los nodos por sistema para extraer la lista de servicios (gotita y nube). */
+const ALL_SYSTEM_NODES: { systemId: string; nodes: Node[] }[] = [
+  { systemId: 'gruta1', nodes: grutaNodesInitial },
+  { systemId: 'hidro', nodes: hidroNodesInitial },
+  { systemId: 'gruta2', nodes: gruta2NodesInitial },
+  { systemId: 'gruta3', nodes: gruta3NodesInitial },
+  { systemId: 'gruta4', nodes: gruta4NodesInitial },
+  { systemId: 'fangoEste', nodes: fangoEsteNodesInitial },
+  { systemId: 'fangoOeste', nodes: fangoOesteNodesInitial },
+  { systemId: 'aljibeFango', nodes: aljibeFangoNodesInitial },
+  { systemId: 'ascensor', nodes: ascensorNodesInitial },
+  { systemId: 'cacheutina', nodes: cacheutinaNodesInitial },
+  { systemId: 'chorroCacheutina', nodes: chorroCacheutinaNodesInitial },
+  { systemId: 'cascada', nodes: cascadaNodesInitial },
+  { systemId: 'aguaFria', nodes: aguaFriaNodesInitial },
+  { systemId: 'parqueArriba1', nodes: parqueArriba1NodesInitial },
+  { systemId: 'parqueBtv2', nodes: parqueBtv2NodesInitial },
+  { systemId: 'parqueJfv3', nodes: parqueJfv3NodesInitial },
+  { systemId: 'parqueDuchas4', nodes: parqueDuchas4NodesInitial },
+  { systemId: 'parqueAguaTibia', nodes: parqueAguaTibiaNodesInitial },
+  { systemId: 'parqueInteractivo', nodes: parqueInteractivoNodesInitial },
+  { systemId: 'parqueBurbuja', nodes: parqueBurbujaNodesInitial },
+  { systemId: 'parqueBurbujaBanos', nodes: parqueBurbujaBanosNodesInitial },
+  { systemId: 'parqueBurbujaExt', nodes: parqueBurbujaExtNodesInitial },
+  { systemId: 'parqueMedialunaExt', nodes: parqueMedialunaExtNodesInitial },
+  { systemId: 'parqueCascada', nodes: parqueCascadaNodesInitial },
+  { systemId: 'parqueSala1', nodes: parqueSala1NodesInitial },
+  { systemId: 'parqueSala2', nodes: parqueSala2NodesInitial },
+  { systemId: 'parqueSala3', nodes: parqueSala3NodesInitial },
+  { systemId: 'parqueSala4', nodes: parqueSala4NodesInitial },
+  { systemId: 'parqueTobogan3', nodes: parqueTobogan3NodesInitial },
+  { systemId: 'parqueCascadaOlas', nodes: parqueCascadaOlasNodesInitial },
+  { systemId: 'parqueChorrosOlas', nodes: parqueChorrosOlasNodesInitial },
+  { systemId: 'parqueAguaFriaParque', nodes: parqueAguaFriaParqueNodesInitial },
+  { systemId: 'pozo19', nodes: pozo19NodesInitial },
+  { systemId: 'pozoLalo', nodes: pozoLaloNodesInitial },
+  { systemId: 'pozoLuisa', nodes: pozoLuisaNodesInitial }
+]
 
 function App() {
   const toast = useToast()
@@ -3933,6 +3972,13 @@ function App() {
     source: 'control' | 'diagram'
   }>({ open: false, transitionId: '', transitionName: '', issueKey: null, source: 'control' })
   const [controlBreakdownExplanation, setControlBreakdownExplanation] = useState('')
+  const [serviceIssuesData, setServiceIssuesData] = useState<Record<string, { summary?: string; status?: string }>>({})
+  const [serviceIssuesLoading, setServiceIssuesLoading] = useState(false)
+  const [serviciosModalItem, setServiciosModalItem] = useState<{ key: string; summary?: string; status?: string } | null>(null)
+  const [serviciosTransitionOptions, setServiciosTransitionOptions] = useState<Array<{ id: string; name: string; toName?: string; requiresBreakdownComment?: boolean }>>([])
+  const [serviciosTransitionLoading, setServiciosTransitionLoading] = useState(false)
+  const [serviciosTransitionSaving, setServiciosTransitionSaving] = useState(false)
+  const [serviciosGroupFilter, setServiciosGroupFilter] = useState<'gruta' | 'parque'>('gruta')
   const diagramAreaRef = useRef<HTMLDivElement>(null)
   const [diagramAreaHeight, setDiagramAreaHeight] = useState<number | null>(null)
 
@@ -3946,7 +3992,7 @@ function App() {
   }
 
   const currentSystemLabel = SYSTEMS.find((sys) => sys.id === currentSystem)?.label ?? 'Sistema'
-  const displayLabel = currentGroup === 'control' ? 'Control' : currentSystemLabel
+  const displayLabel = currentGroup === 'control' ? 'Control' : currentGroup === 'servicios' ? 'Servicios' : currentSystemLabel
 
   const controlListByType = useMemo(() => {
     const groups: Record<string, typeof controlIssues> = {}
@@ -3957,6 +4003,51 @@ function App() {
     }
     return groups
   }, [controlIssues])
+
+  /** Lista de todos los servicios (gotita y nube) por grupo y sistema, para la sección Servicios. */
+  const servicesListGrouped = useMemo(() => {
+    const list: { id: string; label: string; issueKey?: string; type: 'service' | 'cloudService'; systemId: string; systemLabel: string; group: string; groupLabel: string }[] = []
+    for (const { systemId, nodes } of ALL_SYSTEM_NODES) {
+      const sys = SYSTEMS.find((s) => s.id === systemId)
+      if (!sys) continue
+      const groupLabel = SYSTEM_GROUPS.find((g) => g.id === sys.group)?.label ?? sys.group
+      for (const node of nodes) {
+        if (node.type !== 'service' && node.type !== 'cloudService') continue
+        const data = node.data as { label?: string; issueKey?: string }
+        list.push({
+          id: node.id,
+          label: (data?.label ?? node.id).replace(/\n/g, ' ').trim(),
+          issueKey: data?.issueKey,
+          type: node.type as 'service' | 'cloudService',
+          systemId,
+          systemLabel: sys.label,
+          group: sys.group,
+          groupLabel
+        })
+      }
+    }
+    const byGroup: Record<string, Record<string, typeof list>> = {}
+    for (const s of list) {
+      if (!byGroup[s.groupLabel]) byGroup[s.groupLabel] = {}
+      if (!byGroup[s.groupLabel][s.systemLabel]) byGroup[s.groupLabel][s.systemLabel] = []
+      byGroup[s.groupLabel][s.systemLabel].push(s)
+    }
+    return byGroup
+  }, [])
+
+  /** Keys de Jira de todos los servicios (para cargar summary/status). */
+  const serviceIssueKeys = useMemo(() => {
+    const keys: string[] = []
+    for (const bySystem of Object.values(servicesListGrouped)) {
+      for (const services of Object.values(bySystem)) {
+        for (const s of services) {
+          if (s.issueKey) keys.push(s.issueKey)
+        }
+      }
+    }
+    return [...new Set(keys)]
+  }, [servicesListGrouped])
+
   const currentGroupLabel = SYSTEM_GROUPS.find((group) => group.id === currentGroup)?.label ?? 'Grupo'
   const systemsForGroup = SYSTEMS.filter((sys) => sys.group === currentGroup)
   const sala4Systems =
@@ -4569,6 +4660,35 @@ function App() {
   }, [loadIssues])
 
   useEffect(() => {
+    if (currentGroup !== 'servicios' || serviceIssueKeys.length === 0) return
+    let cancelled = false
+    setServiceIssuesLoading(true)
+    const keysParam = serviceIssueKeys.join(',')
+    fetch(`${API_BASE_URL}/api/issues?keys=${encodeURIComponent(keysParam)}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (cancelled) return
+        const map: Record<string, { summary?: string; status?: string }> = {}
+        for (const issue of data.issues || []) {
+          if (issue?.key) {
+            map[issue.key] = {
+              summary: issue.summary,
+              status: issue.status?.name
+            }
+          }
+        }
+        setServiceIssuesData(map)
+      })
+      .catch(() => {
+        if (!cancelled) setServiceIssuesData({})
+      })
+      .finally(() => {
+        if (!cancelled) setServiceIssuesLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [currentGroup, serviceIssueKeys])
+
+  useEffect(() => {
     if (currentGroup !== 'control') return
     let cancelled = false
     setControlLoading(true)
@@ -4642,6 +4762,27 @@ function App() {
     setControlBreakdownModal({ open: true, transitionId, transitionName, issueKey, source: 'diagram' })
     setControlBreakdownExplanation('')
   }
+  const openServiciosModal = (s: { id: string; label: string; issueKey?: string; systemLabel: string }) => {
+    if (!s.issueKey) return
+    setServiciosModalItem({
+      key: s.issueKey,
+      summary: serviceIssuesData[s.issueKey]?.summary,
+      status: serviceIssuesData[s.issueKey]?.status
+    })
+    setServiciosTransitionOptions([])
+    setServiciosTransitionLoading(true)
+    fetch(`${API_BASE_URL}/api/issues/${s.issueKey}/transitions`)
+      .then((res) => res.json())
+      .then((data) => setServiciosTransitionOptions(data.transitions || []))
+      .catch(() => setServiciosTransitionOptions([]))
+      .finally(() => setServiciosTransitionLoading(false))
+  }
+  const closeServiciosModal = () => {
+    setServiciosModalItem(null)
+    setServiciosTransitionOptions([])
+    setServiciosTransitionLoading(false)
+    setServiciosTransitionSaving(false)
+  }
   const closeControlBreakdownModal = () => {
     if (document.activeElement && typeof (document.activeElement as HTMLElement).blur === 'function') {
       (document.activeElement as HTMLElement).blur()
@@ -4696,6 +4837,36 @@ function App() {
       toast({ title: 'Error', description: String(e instanceof Error ? e.message : e), status: 'error', duration: 2000 })
     } finally {
       setControlTransitionSaving(false)
+    }
+  }
+
+  const handleServiciosTransition = async (transitionId: string) => {
+    if (!serviciosModalItem?.key) return
+    const key = serviciosModalItem.key
+    try {
+      setServiciosTransitionSaving(true)
+      const res = await fetch(`${API_BASE_URL}/api/issues/${key}/transition`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transitionId })
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err?.error || 'Error al actualizar')
+      }
+      toast({ title: 'Estado actualizado', status: 'success', duration: 1500 })
+      const issuesRes = await fetch(`${API_BASE_URL}/api/issues?keys=${encodeURIComponent(key)}`)
+      const issuesData = await issuesRes.json().catch(() => ({}))
+      const issue = (issuesData.issues || []).find((i: { key?: string }) => i?.key === key)
+      setServiceIssuesData((prev) => ({
+        ...prev,
+        [key]: { summary: issue?.summary ?? prev[key]?.summary, status: issue?.status?.name }
+      }))
+      setServiciosModalItem((prev) => (prev ? { ...prev, status: issue?.status?.name } : null))
+    } catch (e: unknown) {
+      toast({ title: 'No se pudo actualizar el estado', description: String(e instanceof Error ? e.message : e), status: 'error', duration: 2000 })
+    } finally {
+      setServiciosTransitionSaving(false)
     }
   }
 
@@ -4947,7 +5118,7 @@ function App() {
                         className={`menu-item${currentGroup === group.id ? ' active' : ''}`}
                         onClick={() => {
                           setCurrentGroup(group.id)
-                          if (group.id === 'control') {
+                          if (group.id === 'control' || group.id === 'servicios') {
                             setMenuOpen(false)
                           } else {
                             setMenuLevel('system')
@@ -5037,8 +5208,139 @@ function App() {
           >
             {displayLabel}
           </div>
-          {currentGroup === 'control' ? (
-            <Box pt={1} px={3} pb={4} overflowY="auto" h="100%" position="absolute" inset={0} top={44}>
+          {currentGroup === 'servicios' ? (
+            <>
+            <Box pt={1} px={3} pb={4} overflowY="auto" h="100%" position="absolute" inset={0} top={32}>
+              <HStack mb={3} spacing={2} flexWrap="wrap">
+                <Button
+                  size="sm"
+                  variant={serviciosGroupFilter === 'gruta' ? 'solid' : 'outline'}
+                  colorScheme="blue"
+                  onClick={() => setServiciosGroupFilter('gruta')}
+                >
+                  Gruta
+                </Button>
+                <Button
+                  size="sm"
+                  variant={serviciosGroupFilter === 'parque' ? 'solid' : 'outline'}
+                  colorScheme="blue"
+                  onClick={() => setServiciosGroupFilter('parque')}
+                >
+                  Parque
+                </Button>
+              </HStack>
+              {serviceIssuesLoading ? (
+                <Flex justify="center" align="center" h="50%">
+                  <Spinner size="lg" color="gray.300" />
+                </Flex>
+              ) : (
+              <Stack spacing={6}>
+                {Object.entries(servicesListGrouped)
+                  .filter(([groupLabel]) => (serviciosGroupFilter === 'gruta' && groupLabel === 'Gruta') || (serviciosGroupFilter === 'parque' && groupLabel === 'Parque'))
+                  .map(([groupLabel, bySystem]) => (
+                  <Box key={groupLabel}>
+                    <Heading size="sm" mb={3} color="gray.800">
+                      {groupLabel}
+                    </Heading>
+                    {Object.entries(bySystem).map(([systemLabel, services]) => (
+                      <Box key={systemLabel} mb={4}>
+                        <Text fontSize="sm" fontWeight="bold" color="gray.800" mb={2}>
+                          {systemLabel}
+                        </Text>
+                        <Stack spacing={1}>
+                          {services.map((s) => (
+                            <Box
+                              key={s.id}
+                              py={2}
+                              px={3}
+                              bg="gray.800"
+                              borderRadius="md"
+                              borderWidth="1px"
+                              borderColor="gray.600"
+                              cursor={s.issueKey ? 'pointer' : undefined}
+                              onClick={s.issueKey ? () => openServiciosModal(s) : undefined}
+                              _hover={s.issueKey ? { bg: 'gray.700' } : undefined}
+                            >
+                              <HStack justify="space-between" flexWrap="wrap" gap={2}>
+                                <Text fontSize="sm" fontWeight="medium" color="gray.100">
+                                  {(s.issueKey && serviceIssuesData[s.issueKey]?.summary) || s.label || s.id}
+                                </Text>
+                                {s.issueKey && serviceIssuesData[s.issueKey]?.status != null ? (
+                                  transitionBadge(serviceIssuesData[s.issueKey].status!)
+                                ) : s.issueKey ? (
+                                  <Badge colorScheme="gray">Cargando…</Badge>
+                                ) : null}
+                              </HStack>
+                              {s.issueKey && (
+                                <Text fontSize="xs" color="gray.400" mt={1}>
+                                  {s.issueKey}
+                                </Text>
+                              )}
+                            </Box>
+                          ))}
+                        </Stack>
+                      </Box>
+                    ))}
+                  </Box>
+                ))}
+              </Stack>
+              )}
+            </Box>
+            <Modal isOpen={!!serviciosModalItem} onClose={closeServiciosModal} isCentered size="xs">
+              <ModalOverlay bg="transparent" />
+              <ModalContent maxW="92vw">
+                <ModalHeader pb={2}>
+                  {serviciosModalItem && (
+                    <>
+                      <Text fontWeight="bold" noOfLines={2}>{serviciosModalItem.summary || serviciosModalItem.key}</Text>
+                      <HStack mt={1}>
+                        <Badge colorScheme="blue">{serviciosModalItem.key}</Badge>
+                      </HStack>
+                    </>
+                  )}
+                </ModalHeader>
+                <ModalBody pt={2}>
+                  <Stack spacing={4}>
+                    <Box>
+                      <Text fontSize="sm" fontWeight="semibold" mb={2}>Transiciones</Text>
+                      <HStack spacing={2} fontSize="sm" color="gray.600" mb={2}>
+                        <Text>Estado actual:</Text>
+                        {serviciosModalItem?.status ? transitionBadge(serviciosModalItem.status) : <Text>Sin datos</Text>}
+                      </HStack>
+                      {serviciosTransitionLoading ? (
+                        <Text fontSize="sm">Cargando transiciones...</Text>
+                      ) : serviciosTransitionOptions.length === 0 ? (
+                        <Text fontSize="sm">No hay transiciones disponibles.</Text>
+                      ) : (
+                        <SimpleGrid columns={2} spacing={2}>
+                          {serviciosTransitionOptions
+                            .filter((t) => (t.name || '').toLowerCase() !== 'por hacer')
+                            .map((t) => (
+                              <Button
+                                key={t.id}
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleServiciosTransition(t.id)}
+                                isDisabled={serviciosTransitionSaving}
+                              >
+                                {transitionButtonLabel(t)}
+                              </Button>
+                            ))}
+                        </SimpleGrid>
+                      )}
+                    </Box>
+                  </Stack>
+                </ModalBody>
+                <ModalFooter>
+                  <Button size="sm" variant="ghost" onClick={closeServiciosModal}>
+                    Cancelar
+                  </Button>
+                </ModalFooter>
+              </ModalContent>
+            </Modal>
+            </>
+          ) : currentGroup === 'control' ? (
+            <Box pt={1} px={3} pb={4} overflowY="auto" h="100%" position="absolute" inset={0} top={32}>
               {controlLoading ? (
                 <Flex justify="center" align="center" h="50%">
                   <Spinner size="lg" color="gray.300" />
@@ -5052,7 +5354,7 @@ function App() {
                     if (items.length === 0) return null
                     return (
                       <Box key={type}>
-                        <Heading size="sm" mb={2} sx={{ color: 'white' }}>{type}</Heading>
+                        <Heading size="sm" mb={2} color="gray.800">{type}</Heading>
                         <Stack spacing={2}>
                           {items.map((item) => (
                             <Box
@@ -5702,7 +6004,7 @@ function App() {
         
         {/* Layout desktop */}
         <Flex direction={{ base: "column", lg: "row" }} gap={4} align="stretch">
-          {currentGroup !== 'control' && (
+          {currentGroup !== 'control' && currentGroup !== 'servicios' && (
           <Box 
             w={{ lg: '220px' }} 
             bg="white" 
@@ -5853,8 +6155,139 @@ function App() {
             >
               {displayLabel}
             </div>
-            {currentGroup === 'control' ? (
-            <Box pt={1} px={3} pb={4} overflowY="auto" h="100%" position="absolute" inset={0} top={44}>
+            {currentGroup === 'servicios' ? (
+            <>
+            <Box pt={1} px={3} pb={4} overflowY="auto" h="100%" position="absolute" inset={0} top={32}>
+              <HStack mb={3} spacing={2} flexWrap="wrap">
+                <Button
+                  size="sm"
+                  variant={serviciosGroupFilter === 'gruta' ? 'solid' : 'outline'}
+                  colorScheme="blue"
+                  onClick={() => setServiciosGroupFilter('gruta')}
+                >
+                  Gruta
+                </Button>
+                <Button
+                  size="sm"
+                  variant={serviciosGroupFilter === 'parque' ? 'solid' : 'outline'}
+                  colorScheme="blue"
+                  onClick={() => setServiciosGroupFilter('parque')}
+                >
+                  Parque
+                </Button>
+              </HStack>
+              {serviceIssuesLoading ? (
+                <Flex justify="center" align="center" h="50%">
+                  <Spinner size="lg" color="gray.300" />
+                </Flex>
+              ) : (
+              <Stack spacing={6}>
+                {Object.entries(servicesListGrouped)
+                  .filter(([groupLabel]) => (serviciosGroupFilter === 'gruta' && groupLabel === 'Gruta') || (serviciosGroupFilter === 'parque' && groupLabel === 'Parque'))
+                  .map(([groupLabel, bySystem]) => (
+                  <Box key={groupLabel}>
+                    <Heading size="sm" mb={3} color="gray.800">
+                      {groupLabel}
+                    </Heading>
+                    {Object.entries(bySystem).map(([systemLabel, services]) => (
+                      <Box key={systemLabel} mb={4}>
+                        <Text fontSize="sm" fontWeight="bold" color="gray.800" mb={2}>
+                          {systemLabel}
+                        </Text>
+                        <Stack spacing={1}>
+                          {services.map((s) => (
+                            <Box
+                              key={s.id}
+                              py={2}
+                              px={3}
+                              bg="gray.800"
+                              borderRadius="md"
+                              borderWidth="1px"
+                              borderColor="gray.600"
+                              cursor={s.issueKey ? 'pointer' : undefined}
+                              onClick={s.issueKey ? () => openServiciosModal(s) : undefined}
+                              _hover={s.issueKey ? { bg: 'gray.700' } : undefined}
+                            >
+                              <HStack justify="space-between" flexWrap="wrap" gap={2}>
+                                <Text fontSize="sm" fontWeight="medium" color="gray.100">
+                                  {(s.issueKey && serviceIssuesData[s.issueKey]?.summary) || s.label || s.id}
+                                </Text>
+                                {s.issueKey && serviceIssuesData[s.issueKey]?.status != null ? (
+                                  transitionBadge(serviceIssuesData[s.issueKey].status!)
+                                ) : s.issueKey ? (
+                                  <Badge colorScheme="gray">Cargando…</Badge>
+                                ) : null}
+                              </HStack>
+                              {s.issueKey && (
+                                <Text fontSize="xs" color="gray.400" mt={1}>
+                                  {s.issueKey}
+                                </Text>
+                              )}
+                            </Box>
+                          ))}
+                        </Stack>
+                      </Box>
+                    ))}
+                  </Box>
+                ))}
+              </Stack>
+              )}
+            </Box>
+            <Modal isOpen={!!serviciosModalItem} onClose={closeServiciosModal} isCentered size="md">
+              <ModalOverlay bg="transparent" />
+              <ModalContent>
+                <ModalHeader>
+                  {serviciosModalItem && (
+                    <>
+                      <Text fontWeight="bold" noOfLines={2}>{serviciosModalItem.summary || serviciosModalItem.key}</Text>
+                      <HStack mt={1}>
+                        <Badge colorScheme="blue">{serviciosModalItem.key}</Badge>
+                      </HStack>
+                    </>
+                  )}
+                </ModalHeader>
+                <ModalBody>
+                  <Stack spacing={4}>
+                    <Box>
+                      <Text fontWeight="semibold" mb={2}>Transiciones</Text>
+                      <HStack spacing={2} fontSize="sm" color="gray.600" mb={2}>
+                        <Text>Estado actual:</Text>
+                        {serviciosModalItem?.status ? transitionBadge(serviciosModalItem.status) : <Text>Sin datos</Text>}
+                      </HStack>
+                      {serviciosTransitionLoading ? (
+                        <Text fontSize="sm">Cargando transiciones...</Text>
+                      ) : serviciosTransitionOptions.length === 0 ? (
+                        <Text fontSize="sm">No hay transiciones disponibles.</Text>
+                      ) : (
+                        <SimpleGrid columns={{ base: 2, sm: 3 }} spacing={2}>
+                          {serviciosTransitionOptions
+                            .filter((t) => (t.name || '').toLowerCase() !== 'por hacer')
+                            .map((t) => (
+                              <Button
+                                key={t.id}
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleServiciosTransition(t.id)}
+                                isDisabled={serviciosTransitionSaving}
+                              >
+                                {transitionButtonLabel(t)}
+                              </Button>
+                            ))}
+                        </SimpleGrid>
+                      )}
+                    </Box>
+                  </Stack>
+                </ModalBody>
+                <ModalFooter>
+                  <Button size="sm" variant="ghost" onClick={closeServiciosModal}>
+                    Cancelar
+                  </Button>
+                </ModalFooter>
+              </ModalContent>
+            </Modal>
+            </>
+            ) : currentGroup === 'control' ? (
+            <Box pt={1} px={3} pb={4} overflowY="auto" h="100%" position="absolute" inset={0} top={32}>
               {controlLoading ? (
                 <Flex justify="center" align="center" h="50%">
                   <Spinner size="lg" color="gray.300" />
@@ -5868,7 +6301,7 @@ function App() {
                     if (items.length === 0) return null
                     return (
                       <Box key={type}>
-                        <Heading size="sm" mb={2} sx={{ color: 'white' }}>{type}</Heading>
+                        <Heading size="sm" mb={2} color="gray.800">{type}</Heading>
                         <Stack spacing={2}>
                           {items.map((item) => (
                             <Box
