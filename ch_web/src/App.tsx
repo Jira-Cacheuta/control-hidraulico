@@ -5304,7 +5304,7 @@ function App() {
                   <Stack spacing={2} mt={4} pt={3} borderTop="1px solid" borderColor="gray.200">
                     <HStack justify="space-between">
                       <Text fontSize="sm" fontWeight="semibold">
-                        Bombas / Sopladores
+                        Compatibles
                       </Text>
                       {pumpSaving && <Spinner size="xs" />}
                     </HStack>
@@ -5588,7 +5588,7 @@ function App() {
                 <Stack spacing={2} mt={4} pt={3} borderTop="1px solid" borderColor="gray.200">
                   <HStack justify="space-between">
                     <Text fontSize="sm" fontWeight="semibold">
-                      Bombas / Sopladores
+                      Compatibles
                     </Text>
                     {pumpSaving && <Spinner size="xs" />}
                   </HStack>

@@ -226,13 +226,12 @@ app.get('/api/epics', async (req, res) => {
   }
 })
 
-/** Borra en Jira todos los links "connects to" e "is blocked by" (y "blocks") entre la issue key y cualquier Puesto. */
-async function removePuestoLinksForIssue(jira, issueKey, epicFieldId) {
-  const linkTypes = await getLinkTypes(jira)
+/** Borra en Jira los links "is blocked by" y "blocks" entre la issue key y cualquier Puesto. No toca "connects to". */
+async function removePuestoBlocksOnlyForIssue(jira, issueKey) {
   const links = await getIssueLinksV2(issueKey)
   const toDelete = []
   for (const link of links) {
-    if (!isLinkTypeMatch(link, 'connects to') && !isLinkTypeMatch(link, 'is blocked by') && !isLinkTypeMatch(link, 'blocks')) continue
+    if (!isLinkTypeMatch(link, 'is blocked by') && !isLinkTypeMatch(link, 'blocks')) continue
     const otherKey = getOtherIssueKey(link, issueKey)
     if (!otherKey) continue
     try {
@@ -255,8 +254,8 @@ async function removePuestoLinksForIssue(jira, issueKey, epicFieldId) {
 }
 
 /** Actualiza el Epic Link de una issue. Body: { epicKey: string | null }
- * Si el epic es "En reparación" o "En depósito", borra en Jira los links "connects to" e "is blocked by" con puestos.
- * Si el epic es de sistema (no "En reparación" ni "En depósito"), crea además el link "connects to" entre el puesto del epic y la issue. */
+ * Si el epic es "En reparación" o "En depósito", borra solo los links "is blocked by" y "blocks" entre la issue y cualquier Puesto (no toca "connects to").
+ * La compatibilidad puesto-equipo ("connects to") se gestiona solo en Jira; la app no crea ni borra esos links. */
 app.post('/api/issues/:key/epic', async (req, res) => {
   try {
     const jira = getJiraClient()
@@ -270,43 +269,7 @@ app.post('/api/issues/:key/epic', async (req, res) => {
       const epicSummary = (epicRes?.data?.fields?.summary || '').toLowerCase()
       const esEnReparacionDeposito = epicSummary.includes('en reparación') || epicSummary.includes('en depósito')
       if (esEnReparacionDeposito) {
-        await removePuestoLinksForIssue(jira, key, epicFieldId)
-      } else {
-        const linkTypes = await getLinkTypes(jira)
-        const connectsType = findLinkType(linkTypes, 'connects to')
-        if (connectsType) {
-          // En JQL el campo se referencia por nombre; "Epic Link" es el estándar en Jira
-          const jqlPuesto = `project = CH AND issuetype = Puesto AND "Epic Link" = "${epicKey}"`
-          const { data: searchData } = await jira.get('/search/jql', {
-            params: { jql: jqlPuesto, fields: 'key', maxResults: 1 }
-          })
-          const puestoIssue = (searchData?.issues || [])[0]
-          const puestoKey = puestoIssue?.key
-          if (puestoKey) {
-            const puestoLinks = await getIssueWithLinks(jira, puestoKey, epicFieldId)
-            const links = puestoLinks?.fields?.issuelinks || []
-            const yaConectado = links.some((link) => isLinkTypeMatch(link, 'connects to') && getOtherIssueKey(link, puestoKey) === key)
-            if (!yaConectado) {
-              try {
-                await jira.post('/issueLink', {
-                  type: { name: connectsType.name },
-                  inwardIssue: { key },
-                  outwardIssue: { key: puestoKey }
-                })
-              } catch (linkErr) {
-                try {
-                  await jira.post('/issueLink', {
-                    type: { name: connectsType.name },
-                    inwardIssue: { key: puestoKey },
-                    outwardIssue: { key }
-                  })
-                } catch (linkErr2) {
-                  console.warn('[epic] No se pudo crear connects to:', linkErr?.message || linkErr2?.message)
-                }
-              }
-            }
-          }
-        }
+        await removePuestoBlocksOnlyForIssue(jira, key)
       }
     }
     res.json({ ok: true })

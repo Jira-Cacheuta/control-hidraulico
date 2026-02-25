@@ -386,3 +386,58 @@ Para entrar con `http://3.138.205.241` sin `:4000`:
 - **Nano:** editor de texto en la terminal del servidor; Ctrl+O guarda, Ctrl+X sale.
 - **pm2 list:** la tabla muestra los procesos gestionados por PM2; “online” = corriendo.
 - Lo instalado (Node, PM2, paquetes npm, código clonado) persiste aunque te desconectes; solo hay que volver a conectar por SSH para seguir trabajando.
+
+---
+
+# Resumen de la sesión – cambios UI, Gruta 3 y estados Jira (feb 2026)
+
+Para retomar en un nuevo chat: cambios de interfaz, nuevos nodos en Gruta 3 y configuración para que traigan estado/summary desde Jira.
+
+## Recuadro de aviso en Sistema Gruta Nº1
+
+- El texto de aviso (“Cambiar de estado la bomba… afecta al Sistema Hidro…”) está **debajo del diagrama**, no superpuesto.
+- Implementación en `ch_web/src/App.tsx`: el contenedor del diagrama es un flex en columna; arriba el ReactFlow (flex 1), abajo un `Box` con el texto solo cuando `currentSystem === 'gruta1'`. Igual en vista móvil y escritorio.
+
+## Sistema Gruta Nº3 – Cañería CH-695 y Servicio CH-696
+
+- **Nodos agregados** en `gruta3NodesInitial` (App.tsx):
+  - Cañería: `id: 'gruta3-cañeria2'`, tipo `pipeSegment`, `issueKey: 'CH-695'`, posición (500, 420).
+  - Servicio: `id: 'gruta3-servicio2'`, tipo `cloudService`, `issueKey: 'CH-696'`, posición (500, 520).
+- **Edges:** Puesto → cañería CH-695 (handle out-bottom-right); cañería CH-695 → servicio CH-696 (out-bottom → in-top).
+- El tipo `cloudService` ya recibe el **summary** de Jira como label en `applyIssueData` (junto con `service` y `waveService`).
+
+## Estados y summary desde Jira (CH-695 y CH-696)
+
+- El backend en `GET /api/issues` usa `req.query.keys || JIRA_ISSUE_KEYS`. Si el front no manda `keys`, se usan las keys del `.env`.
+- Para que CH-695 y CH-696 traigan **estado** y (para CH-696) **summary**, hay que agregarlos a **JIRA_ISSUE_KEYS** en `ch_backend/.env`:
+  - En local: ya se agregaron `CH-695` y `CH-696` al final de la lista en `ch_backend/.env`.
+  - En el servidor: si no están, editar `~/control-hidraulico/ch_backend/.env` con `nano` y añadir `,CH-695,CH-696` al final de `JIRA_ISSUE_KEYS`, luego `pm2 restart ch-backend`.
+
+## Estado del nodo cloudService (no tape el texto)
+
+- En `ch_web/src/nodes/CustomNodes.tsx`, en **CloudServiceNode**, el `StatusBadge` usa por defecto `bottom={data?.statusBottom ?? -16}` para que el badge quede **debajo** del ícono y no tape el summary. Si hace falta otra posición en un nodo concreto, se puede usar `statusBottom` en los datos del nodo.
+
+## Desplegar estos cambios en el servidor
+
+**En la PC (raíz del proyecto):**
+```bash
+git add .
+git status   # revisar que no aparezca .env
+git commit -m "Recuadro Gruta 1 debajo, cloudService estado abajo, etc."
+git push origin main
+```
+
+**En el servidor (por SSH):**
+```bash
+ssh -i "C:\Users\augus\Downloads\LightsailDefaultKey-us-east-2.pem" ubuntu@3.138.205.241
+cd ~/control-hidraulico
+git pull origin main
+cd ch_web
+npm run build
+cd ../ch_backend
+pm2 restart all
+```
+
+Si en el servidor faltan CH-695 y CH-696 en `.env`: `nano .env`, agregar al final de `JIRA_ISSUE_KEYS` `,CH-695,CH-696`, guardar, luego `pm2 restart all`.
+
+**Verificar:** `http://3.138.205.241` (o con `:4000` si el backend sigue en 4000) — Gruta Nº1 con recuadro abajo; Gruta Nº3 con CH-695 y CH-696 mostrando estado y el servicio con summary y estado debajo del ícono.
