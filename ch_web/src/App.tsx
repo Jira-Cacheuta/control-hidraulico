@@ -3857,6 +3857,119 @@ const ALL_SYSTEM_NODES: { systemId: string; nodes: Node[] }[] = [
   { systemId: 'pozoLuisa', nodes: pozoLuisaNodesInitial }
 ]
 
+/** IDs del bloque que parte de la barra azul (manifold) en Gruta Nº1; en desktop se desplazan hacia abajo para no superponer la Llave. */
+const GRUTA1_BELOW_MANIFOLD_IDS = new Set([
+  'manifold', 'ramal1', 'ramal2', 'ramal3', 'ramal4', 'ramal5',
+  'servicio1', 'servicio2', 'servicio3', 'servicio4', 'servicio5', 'hidro'
+])
+/** Sistema Hidro (Gruta, desktop): bloque bajo manifold con offset 80; pulsadores y sus dos servicios bajan un poco más (120). */
+const HIDRO_DESKTOP_OFFSET_Y: Record<string, number> = {
+  'hidro-manifold': 80, 'hidro-ramal1': 80, 'hidro-ramal2': 80, 'hidro-ramal3': 80,
+  'hidro-valvula1': 80, 'hidro-valvula2': 80,
+  'hidro-pulsador1': 120, 'hidro-pulsador2': 120,
+  'hidro-servicio1': 120, 'hidro-servicio2': 120, 'hidro-servicio3': 80
+}
+/** IDs de la cañería y el servicio gotita en Gruta Nº2; en desktop se bajan para no superponer con la Llave. */
+const GRUTA2_BELOW_VALVE_IDS = new Set(['gruta2-ramal1', 'gruta2-servicio1'])
+/** Por sistema (Gruta): cañería y servicio gotita a bajar en desktop (puesto → ramal → servicio). */
+const DESKTOP_BELOW_PUESTO_IDS: Record<string, Set<string>> = {
+  gruta4: new Set(['gruta4-ramal1', 'gruta4-servicio1']),
+  aljibeFango: new Set(['aljibe-fango-ramal1', 'aljibe-fango-servicio1']),
+  ascensor: new Set(['ascensor-ramal1', 'ascensor-servicio1']),
+  cacheutina: new Set(['cacheutina-ramal1', 'cacheutina-servicio1']),
+  cascada: new Set(['cascada-ramal1', 'cascada-servicio1']),
+  aguaFria: new Set(['agua-fria-ramal1', 'agua-fria-servicio1'])
+}
+/** Sistema 1-Arriba (desktop): subir todo el sistema (SHIFT_Y); más ajustes por nodo en OFFSET_Y. */
+const PARQUE_ARRIBA1_DESKTOP_SHIFT_Y = -80
+/** Sistema 1-Arriba (desktop): Llave subir un poco; CH-998 sin desplazamiento; CH-1003 + bloque bajar un poco; CH-1016 + bloque bajar un poco más. */
+const PARQUE_ARRIBA1_DESKTOP_OFFSET_Y: Record<string, number> = {
+  'parque-arriba1-valvula': -25,
+  'parque-arriba1-ramal1003': 25, 'parque-arriba1-line-1003': 25,
+  'parque-arriba1-ramal1004': 25, 'parque-arriba1-servicio1010': 25, 'parque-arriba1-ramal1005': 25, 'parque-arriba1-servicio1011': 25,
+  'parque-arriba1-ramal1006': 25, 'parque-arriba1-servicio1012': 25, 'parque-arriba1-ramal1007': 25, 'parque-arriba1-servicio1013': 25,
+  'parque-arriba1-ramal1008': 25, 'parque-arriba1-servicio1014': 25, 'parque-arriba1-ramal1009': 25, 'parque-arriba1-servicio1015': 25,
+  'parque-arriba1-ramal1016': 120, 'parque-arriba1-line-1016': 120,
+  'parque-arriba1-ramal1017': 120, 'parque-arriba1-servicio1019': 120, 'parque-arriba1-ramal1018': 120, 'parque-arriba1-servicio1020': 120
+}
+/** Sistema 2-BTV (desktop): subir llave CH-1024; bajar línea CH-1024 y su bloque; bajar cañería CH-1023 y todo el bloque que baja de la misma. */
+const PARQUE_BTV2_DESKTOP_OFFSET_Y: Record<string, number> = {
+  'parque-btv2-ramal1023': 40, 'parque-btv2-line-1023': 40,
+  'parque-btv2-ramal1031': 40, 'parque-btv2-line-1031-1032': 40, 'parque-btv2-servicio1032': 40,
+  'parque-btv2-ramal1033': 40, 'parque-btv2-servicio1035': 40,
+  'parque-btv2-ramal1034': 40, 'parque-btv2-servicio1036': 40,
+  'parque-btv2-valvula1024': 25,
+  'parque-btv2-line-1024': 65,
+  'parque-btv2-ramal1025': 65, 'parque-btv2-servicio1028': 65,
+  'parque-btv2-ramal1026': 65, 'parque-btv2-servicio1029': 65,
+  'parque-btv2-ramal1027': 65, 'parque-btv2-servicio1030': 65
+}
+/** Sistema 3-JFV (desktop): bajar cañería CH-1039 y todo el bloque que baja de la misma. */
+const PARQUE_JFV3_DESKTOP_OFFSET_Y: Record<string, number> = {
+  'parque-jfv3-ramal1039': 40, 'parque-jfv3-line-1039': 40,
+  'parque-jfv3-ramal1040': 40, 'parque-jfv3-servicio1043': 40,
+  'parque-jfv3-ramal1041': 40, 'parque-jfv3-servicio1044': 40,
+  'parque-jfv3-ramal1042': 40, 'parque-jfv3-servicio1045': 40
+}
+/** Sistema 4-Duchas (desktop): bajar cañería CH-1063 y todo el bloque que baja de la misma. */
+const PARQUE_DUCHAS4_DESKTOP_OFFSET_Y: Record<string, number> = {
+  'parque-duchas4-ramal1063': 40, 'parque-duchas4-line-1063': 40,
+  'parque-duchas4-ramal1064': 40, 'parque-duchas4-servicio1066': 40,
+  'parque-duchas4-ramal1065': 40, 'parque-duchas4-servicio1067': 40
+}
+/** Sistema Agua Tibia (parque, desktop): bajar cañería CH-1051 y todo el bloque que baja de la misma. */
+const PARQUE_AGUATIBIA_DESKTOP_OFFSET_Y: Record<string, number> = {
+  'parque-aguatibia-ramal1051': 40, 'parque-aguatibia-line-1051': 40,
+  'parque-aguatibia-ramal1052': 40, 'parque-aguatibia-servicio1053': 40,
+  'parque-aguatibia-ramal1054': 40, 'parque-aguatibia-line-1054': 40,
+  'parque-aguatibia-ramal1055': 40, 'parque-aguatibia-servicio1058': 40,
+  'parque-aguatibia-ramal1056': 40, 'parque-aguatibia-servicio1059': 40,
+  'parque-aguatibia-ramal1057': 40, 'parque-aguatibia-servicio1060': 40
+}
+/** Sistema Interactivo (parque, desktop): bajar cañería CH-1083 y el servicio que baja de la misma. */
+const PARQUE_INTERACTIVO_DESKTOP_OFFSET_Y: Record<string, number> = {
+  'parque-interactivo-ramal1083': 40, 'parque-interactivo-servicio1084': 40
+}
+/** Sistema Burbuja principal (parque, desktop): bajar cañería que baja del puesto y el servicio. */
+const PARQUE_BURBUJA_DESKTOP_OFFSET_Y: Record<string, number> = {
+  'parque-burbuja-ramal1089': 40, 'parque-burbuja-servicio1090': 40
+}
+/** Sistema Burbuja baños (parque, desktop): bajar cañería que baja del puesto y el servicio. */
+const PARQUE_BURBUJABANOS_DESKTOP_OFFSET_Y: Record<string, number> = {
+  'parque-burbujabanos-ramal1095': 40, 'parque-burbujabanos-servicio1096': 40
+}
+/** Sistema Sala 1 (parque, desktop): bajar cañería que baja del puesto y el servicio. */
+const PARQUE_SALA1_DESKTOP_OFFSET_Y: Record<string, number> = {
+  'parque-sala1-ramal1122': 40, 'parque-sala1-servicio1123': 40
+}
+/** Sistema Agua Fría Parque (desktop): bajar la línea azul horizontal (tee) que baja del puesto, las dos cañerías y todo el bloque de cada una. */
+const PARQUE_AGUAFRIAPARQUE_DESKTOP_OFFSET_Y: Record<string, number> = {
+  'parque-agua-fria-parque-teebar': 40,
+  'parque-agua-fria-parque-ramal1073': 40, 'parque-agua-fria-parque-line1073': 40,
+  'parque-agua-fria-parque-ramal1074': 40, 'parque-agua-fria-parque-ramal1075': 40,
+  'parque-agua-fria-parque-servicio1076': 40, 'parque-agua-fria-parque-servicio1077': 40,
+  'parque-agua-fria-parque-ramal1173': 40, 'parque-agua-fria-parque-line1173': 40,
+  'parque-agua-fria-parque-ramal1174': 40, 'parque-agua-fria-parque-ramal1175': 40,
+  'parque-agua-fria-parque-ramal1176': 40, 'parque-agua-fria-parque-ramal1177': 40,
+  'parque-agua-fria-parque-ramal1178': 40, 'parque-agua-fria-parque-ramal1179': 40,
+  'parque-agua-fria-parque-servicio1180': 40, 'parque-agua-fria-parque-servicio1181': 40,
+  'parque-agua-fria-parque-servicio1182': 40, 'parque-agua-fria-parque-servicio1183': 40,
+  'parque-agua-fria-parque-servicio1184': 40, 'parque-agua-fria-parque-servicio1185': 40
+}
+/** Sistema Tobogán (parque, desktop): bajar la línea azul horizontal (tee) que baja del puesto y todo el bloque (cañerías y servicios). */
+const PARQUE_TOBOGAN3_DESKTOP_OFFSET_Y: Record<string, number> = {
+  'parque-tobogan3-teebar': 40,
+  'parque-tobogan3-ramal1147': 40, 'parque-tobogan3-ramal1171': 40,
+  'parque-tobogan3-servicio1148': 40, 'parque-tobogan3-servicio1172': 40
+}
+/** Cascada Olas, Chorros Olas, Burbuja ext, Medialuna ext, Cascada (parque, desktop): bajar cañería que baja del puesto y el servicio. */
+const PARQUE_CASCADAOLAS_DESKTOP_OFFSET_Y: Record<string, number> = { 'parque-cascadaolas-ramal1154': 40, 'parque-cascadaolas-servicio1155': 40 }
+const PARQUE_CHORROSOLAS_DESKTOP_OFFSET_Y: Record<string, number> = { 'parque-chorrosolas-ramal1161': 40, 'parque-chorrosolas-servicio1162': 40 }
+const PARQUE_BURBUJAEXT_DESKTOP_OFFSET_Y: Record<string, number> = { 'parque-burbujaext-ramal1101': 40, 'parque-burbujaext-servicio1102': 40 }
+const PARQUE_MEDIALUNAEXT_DESKTOP_OFFSET_Y: Record<string, number> = { 'parque-medialunaext-ramal1107': 40, 'parque-medialunaext-servicio1108': 40 }
+const PARQUE_CASCADA_DESKTOP_OFFSET_Y: Record<string, number> = { 'parque-cascada-ramal1115': 40, 'parque-cascada-servicio1116': 40 }
+const DESKTOP_BLOCK_OFFSET_Y = 80
+
 function App() {
   const toast = useToast()
   const [grutaNodes, setGrutaNodes, onGrutaNodesChange] = useNodesState(grutaNodesInitial)
@@ -4376,6 +4489,150 @@ function App() {
       }),
     [activeNodes, hiddenPumpNodeIds]
   )
+
+  /** En escritorio: bajar cañería y servicio gotita donde corresponda (Gruta Nº1, Hidro, Gruta Nº2, Gruta Nº4, Aljibe Fango, Ascensor, Cacheutina, Cascada, Agua Fría). */
+  const diagramNodesForDesktop = useMemo(() => {
+    if (isMobile) return filteredActiveNodes
+    if (currentSystem === 'gruta1') {
+      return filteredActiveNodes.map((node) => {
+        if (!GRUTA1_BELOW_MANIFOLD_IDS.has(node.id)) return node
+        return { ...node, position: { ...node.position, y: node.position.y + DESKTOP_BLOCK_OFFSET_Y } }
+      })
+    }
+    if (currentSystem === 'hidro') {
+      return filteredActiveNodes.map((node) => {
+        const offset = HIDRO_DESKTOP_OFFSET_Y[node.id]
+        if (offset === undefined) return node
+        return { ...node, position: { ...node.position, y: node.position.y + offset } }
+      })
+    }
+    if (currentSystem === 'gruta2') {
+      return filteredActiveNodes.map((node) => {
+        if (!GRUTA2_BELOW_VALVE_IDS.has(node.id)) return node
+        return { ...node, position: { ...node.position, y: node.position.y + DESKTOP_BLOCK_OFFSET_Y } }
+      })
+    }
+    if (currentSystem === 'parqueArriba1') {
+      return filteredActiveNodes.map((node) => {
+        const shift = PARQUE_ARRIBA1_DESKTOP_SHIFT_Y
+        const extra = PARQUE_ARRIBA1_DESKTOP_OFFSET_Y[node.id] ?? 0
+        return { ...node, position: { ...node.position, y: node.position.y + shift + extra } }
+      })
+    }
+    if (currentSystem === 'parqueBtv2') {
+      return filteredActiveNodes.map((node) => {
+        const offset = PARQUE_BTV2_DESKTOP_OFFSET_Y[node.id]
+        if (offset === undefined) return node
+        return { ...node, position: { ...node.position, y: node.position.y + offset } }
+      })
+    }
+    if (currentSystem === 'parqueJfv3') {
+      return filteredActiveNodes.map((node) => {
+        const offset = PARQUE_JFV3_DESKTOP_OFFSET_Y[node.id]
+        if (offset === undefined) return node
+        return { ...node, position: { ...node.position, y: node.position.y + offset } }
+      })
+    }
+    if (currentSystem === 'parqueDuchas4') {
+      return filteredActiveNodes.map((node) => {
+        const offset = PARQUE_DUCHAS4_DESKTOP_OFFSET_Y[node.id]
+        if (offset === undefined) return node
+        return { ...node, position: { ...node.position, y: node.position.y + offset } }
+      })
+    }
+    if (currentSystem === 'parqueAguaTibia') {
+      return filteredActiveNodes.map((node) => {
+        const offset = PARQUE_AGUATIBIA_DESKTOP_OFFSET_Y[node.id]
+        if (offset === undefined) return node
+        return { ...node, position: { ...node.position, y: node.position.y + offset } }
+      })
+    }
+    if (currentSystem === 'parqueInteractivo') {
+      return filteredActiveNodes.map((node) => {
+        const offset = PARQUE_INTERACTIVO_DESKTOP_OFFSET_Y[node.id]
+        if (offset === undefined) return node
+        return { ...node, position: { ...node.position, y: node.position.y + offset } }
+      })
+    }
+    if (currentSystem === 'parqueBurbuja') {
+      return filteredActiveNodes.map((node) => {
+        const offset = PARQUE_BURBUJA_DESKTOP_OFFSET_Y[node.id]
+        if (offset === undefined) return node
+        return { ...node, position: { ...node.position, y: node.position.y + offset } }
+      })
+    }
+    if (currentSystem === 'parqueBurbujaBanos') {
+      return filteredActiveNodes.map((node) => {
+        const offset = PARQUE_BURBUJABANOS_DESKTOP_OFFSET_Y[node.id]
+        if (offset === undefined) return node
+        return { ...node, position: { ...node.position, y: node.position.y + offset } }
+      })
+    }
+    if (currentSystem === 'parqueSala1') {
+      return filteredActiveNodes.map((node) => {
+        const offset = PARQUE_SALA1_DESKTOP_OFFSET_Y[node.id]
+        if (offset === undefined) return node
+        return { ...node, position: { ...node.position, y: node.position.y + offset } }
+      })
+    }
+    if (currentSystem === 'parqueAguaFriaParque') {
+      return filteredActiveNodes.map((node) => {
+        const offset = PARQUE_AGUAFRIAPARQUE_DESKTOP_OFFSET_Y[node.id]
+        if (offset === undefined) return node
+        return { ...node, position: { ...node.position, y: node.position.y + offset } }
+      })
+    }
+    if (currentSystem === 'parqueTobogan3') {
+      return filteredActiveNodes.map((node) => {
+        const offset = PARQUE_TOBOGAN3_DESKTOP_OFFSET_Y[node.id]
+        if (offset === undefined) return node
+        return { ...node, position: { ...node.position, y: node.position.y + offset } }
+      })
+    }
+    if (currentSystem === 'parqueCascadaOlas') {
+      return filteredActiveNodes.map((node) => {
+        const offset = PARQUE_CASCADAOLAS_DESKTOP_OFFSET_Y[node.id]
+        if (offset === undefined) return node
+        return { ...node, position: { ...node.position, y: node.position.y + offset } }
+      })
+    }
+    if (currentSystem === 'parqueChorrosOlas') {
+      return filteredActiveNodes.map((node) => {
+        const offset = PARQUE_CHORROSOLAS_DESKTOP_OFFSET_Y[node.id]
+        if (offset === undefined) return node
+        return { ...node, position: { ...node.position, y: node.position.y + offset } }
+      })
+    }
+    if (currentSystem === 'parqueBurbujaExt') {
+      return filteredActiveNodes.map((node) => {
+        const offset = PARQUE_BURBUJAEXT_DESKTOP_OFFSET_Y[node.id]
+        if (offset === undefined) return node
+        return { ...node, position: { ...node.position, y: node.position.y + offset } }
+      })
+    }
+    if (currentSystem === 'parqueMedialunaExt') {
+      return filteredActiveNodes.map((node) => {
+        const offset = PARQUE_MEDIALUNAEXT_DESKTOP_OFFSET_Y[node.id]
+        if (offset === undefined) return node
+        return { ...node, position: { ...node.position, y: node.position.y + offset } }
+      })
+    }
+    if (currentSystem === 'parqueCascada') {
+      return filteredActiveNodes.map((node) => {
+        const offset = PARQUE_CASCADA_DESKTOP_OFFSET_Y[node.id]
+        if (offset === undefined) return node
+        return { ...node, position: { ...node.position, y: node.position.y + offset } }
+      })
+    }
+    const belowPuestoIds = DESKTOP_BELOW_PUESTO_IDS[currentSystem]
+    if (belowPuestoIds) {
+      return filteredActiveNodes.map((node) => {
+        if (!belowPuestoIds.has(node.id)) return node
+        return { ...node, position: { ...node.position, y: node.position.y + DESKTOP_BLOCK_OFFSET_Y } }
+      })
+    }
+    return filteredActiveNodes
+  }, [isMobile, currentSystem, filteredActiveNodes])
 
   const filteredActiveEdges = useMemo(() => {
     return activeEdges.filter((edge) => {
@@ -5210,81 +5467,107 @@ function App() {
           </div>
           {currentGroup === 'servicios' ? (
             <>
-            <Box pt={1} px={3} pb={4} overflowY="auto" h="100%" position="absolute" inset={0} top={32}>
-              <HStack mb={3} spacing={2} flexWrap="wrap">
-                <Button
-                  size="sm"
-                  variant={serviciosGroupFilter === 'gruta' ? 'solid' : 'outline'}
-                  colorScheme="blue"
-                  onClick={() => setServiciosGroupFilter('gruta')}
-                >
-                  Gruta
-                </Button>
-                <Button
-                  size="sm"
-                  variant={serviciosGroupFilter === 'parque' ? 'solid' : 'outline'}
-                  colorScheme="blue"
-                  onClick={() => setServiciosGroupFilter('parque')}
-                >
-                  Parque
-                </Button>
-              </HStack>
-              {serviceIssuesLoading ? (
-                <Flex justify="center" align="center" h="50%">
-                  <Spinner size="lg" color="gray.300" />
-                </Flex>
-              ) : (
-              <Stack spacing={6}>
-                {Object.entries(servicesListGrouped)
-                  .filter(([groupLabel]) => (serviciosGroupFilter === 'gruta' && groupLabel === 'Gruta') || (serviciosGroupFilter === 'parque' && groupLabel === 'Parque'))
-                  .map(([groupLabel, bySystem]) => (
-                  <Box key={groupLabel}>
-                    <Heading size="sm" mb={3} color="gray.800">
-                      {groupLabel}
-                    </Heading>
-                    {Object.entries(bySystem).map(([systemLabel, services]) => (
-                      <Box key={systemLabel} mb={4}>
-                        <Text fontSize="sm" fontWeight="bold" color="gray.800" mb={2}>
-                          {systemLabel}
-                        </Text>
-                        <Stack spacing={1}>
-                          {services.map((s) => (
-                            <Box
-                              key={s.id}
-                              py={2}
-                              px={3}
-                              bg="gray.800"
-                              borderRadius="md"
-                              borderWidth="1px"
-                              borderColor="gray.600"
-                              cursor={s.issueKey ? 'pointer' : undefined}
-                              onClick={s.issueKey ? () => openServiciosModal(s) : undefined}
-                              _hover={s.issueKey ? { bg: 'gray.700' } : undefined}
-                            >
-                              <HStack justify="space-between" flexWrap="wrap" gap={2}>
-                                <Text fontSize="sm" fontWeight="medium" color="gray.100">
-                                  {(s.issueKey && serviceIssuesData[s.issueKey]?.summary) || s.label || s.id}
-                                </Text>
-                                {s.issueKey && serviceIssuesData[s.issueKey]?.status != null ? (
-                                  transitionBadge(serviceIssuesData[s.issueKey].status!)
-                                ) : s.issueKey ? (
-                                  <Badge colorScheme="gray">Cargando…</Badge>
-                                ) : null}
-                              </HStack>
-                              {s.issueKey && (
-                                <Text fontSize="xs" color="gray.400" mt={1}>
-                                  {s.issueKey}
-                                </Text>
-                              )}
-                            </Box>
-                          ))}
-                        </Stack>
-                      </Box>
-                    ))}
-                  </Box>
-                ))}
-              </Stack>
-              )}
+            {/* Móvil: overlay fijo para que solo esta lista haga scroll y no la página. pt deja espacio al botón hamburguesa (44px + margen). */}
+            <Box
+              position="fixed"
+              top={0}
+              left={0}
+              right={0}
+              bottom={0}
+              zIndex={4}
+              bg="gray.50"
+              display="flex"
+              flexDirection="column"
+              pt="max(76px, calc(env(safe-area-inset-top, 0px) + 60px))"
+              style={{ touchAction: 'pan-y' }}
+            >
+              <Box px={3} pb={2} flexShrink={0}>
+                <HStack mb={3} spacing={2} flexWrap="wrap">
+                  <Button
+                    size="sm"
+                    variant={serviciosGroupFilter === 'gruta' ? 'solid' : 'outline'}
+                    colorScheme="blue"
+                    onClick={() => setServiciosGroupFilter('gruta')}
+                  >
+                    Gruta
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={serviciosGroupFilter === 'parque' ? 'solid' : 'outline'}
+                    colorScheme="blue"
+                    onClick={() => setServiciosGroupFilter('parque')}
+                  >
+                    Parque
+                  </Button>
+                </HStack>
+              </Box>
+              <Box
+                flex={1}
+                minH={0}
+                overflowY="auto"
+                overflowX="hidden"
+                px={3}
+                pb="max(32px, env(safe-area-inset-bottom, 0px))"
+                style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }}
+              >
+                {serviceIssuesLoading ? (
+                  <Flex justify="center" align="center" h="50%">
+                    <Spinner size="lg" color="gray.300" />
+                  </Flex>
+                ) : (
+                <Stack spacing={6}>
+                  {Object.entries(servicesListGrouped)
+                    .filter(([groupLabel]) => (serviciosGroupFilter === 'gruta' && groupLabel === 'Gruta') || (serviciosGroupFilter === 'parque' && groupLabel === 'Parque'))
+                    .map(([groupLabel, bySystem]) => (
+                    <Box key={groupLabel}>
+                      <Heading size="sm" mb={3} color="gray.800">
+                        {groupLabel}
+                      </Heading>
+                      {Object.entries(bySystem).map(([systemLabel, services]) => (
+                        <Box key={systemLabel} mb={4}>
+                          <Text fontSize="sm" fontWeight="bold" color="gray.800" mb={2}>
+                            {systemLabel}
+                          </Text>
+                          <Stack spacing={1}>
+                            {services.map((s) => (
+                              <Box
+                                key={s.id}
+                                py={2}
+                                px={3}
+                                bg="gray.800"
+                                borderRadius="md"
+                                borderWidth="1px"
+                                borderColor="gray.600"
+                                cursor={s.issueKey ? 'pointer' : undefined}
+                                onClick={s.issueKey ? () => openServiciosModal(s) : undefined}
+                                _hover={s.issueKey ? { bg: 'gray.700' } : undefined}
+                              >
+                                <HStack justify="space-between" flexWrap="wrap" gap={2}>
+                                  <Text fontSize="sm" fontWeight="medium" color="gray.100">
+                                    {(s.issueKey && serviceIssuesData[s.issueKey]?.summary) || s.label || s.id}
+                                  </Text>
+                                  {s.issueKey && serviceIssuesData[s.issueKey]?.status != null ? (
+                                    transitionBadge(serviceIssuesData[s.issueKey].status!)
+                                  ) : s.issueKey ? (
+                                    <Badge colorScheme="gray">Cargando…</Badge>
+                                  ) : null}
+                                </HStack>
+                                {s.issueKey && (
+                                  <Text fontSize="xs" color="gray.400" mt={1}>
+                                    {s.issueKey}
+                                  </Text>
+                                )}
+                              </Box>
+                            ))}
+                          </Stack>
+                        </Box>
+                      ))}
+                    </Box>
+                  ))}
+                  <Box minH="40px" aria-hidden />
+                </Stack>
+                )}
+              </Box>
             </Box>
             <Modal isOpen={!!serviciosModalItem} onClose={closeServiciosModal} isCentered size="xs">
               <ModalOverlay bg="transparent" />
@@ -5741,6 +6024,7 @@ function App() {
                 }}
                 onNodeClick={onNodeClick}
                 onEdgeClick={onEdgeClick}
+                noPanClassName="nopan"
                 style={{ width: '100%', height: '100%', position: 'absolute', inset: 0 }}
                 defaultViewport={{ x: 0, y: 0, zoom: 0.88 }}
                 nodesDraggable={false}
@@ -5999,8 +6283,10 @@ function App() {
             </ModalFooter>
           </ModalContent>
         </Modal>
-        <Heading size={{ base: "md", md: "lg" }} mb={2}>Control hidráulico</Heading>
-        <Text color="gray.600" mb={4} fontSize={{ base: "sm", md: "md" }}>Vista preliminar • {displayLabel}</Text>
+        <Box display="none">
+          <Heading size={{ base: "md", md: "lg" }} mb={2}>Control hidráulico</Heading>
+          <Text color="gray.600" mb={4} fontSize={{ base: "sm", md: "md" }}>Vista preliminar • {displayLabel}</Text>
+        </Box>
         
         {/* Layout desktop */}
         <Flex direction={{ base: "column", lg: "row" }} gap={4} align="stretch">
@@ -6012,7 +6298,7 @@ function App() {
             borderRadius="lg" 
             p={{ base: 3, md: 4 }}
             order={{ lg: 1 }}
-            display={{ base: "none", lg: "block" }}
+            display="none"
           >
             <Heading size="sm" mb={2}>Sistemas</Heading>
             <Text fontSize="sm" color="gray.600">Próximamente</Text>
@@ -6157,7 +6443,20 @@ function App() {
             </div>
             {currentGroup === 'servicios' ? (
             <>
-            <Box pt={1} px={3} pb={4} overflowY="auto" h="100%" position="absolute" inset={0} top={32}>
+            <Box
+              pt={1}
+              px={3}
+              pb={12}
+              overflowY="auto"
+              overflowX="hidden"
+              position="absolute"
+              top={32}
+              left={0}
+              right={0}
+              bottom={0}
+              minH={0}
+              style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }}
+            >
               <HStack mb={3} spacing={2} flexWrap="wrap">
                 <Button
                   size="sm"
@@ -6230,6 +6529,7 @@ function App() {
                     ))}
                   </Box>
                 ))}
+                <Box minH="120px" aria-hidden />
               </Stack>
               )}
             </Box>
@@ -6441,22 +6741,23 @@ function App() {
               <Box flex={1} minH={0} position="relative">
                 <ReactFlow
                   nodeTypes={nodeTypes}
-                  nodes={filteredActiveNodes}
+                  nodes={diagramNodesForDesktop}
                   edges={filteredActiveEdges}
                   onNodesChange={activeOnNodesChange}
                   onEdgesChange={activeOnEdgesChange}
                   onConnect={onConnect}
                   fitView
                   fitViewOptions={{
-                    padding: 0.28,
+                    padding: (currentGroup === 'gruta' || currentGroup === 'parque') ? 0 : 0.28,
                     includeHiddenNodes: true,
                     minZoom: 0.4,
                     maxZoom: 2
                   }}
                   onNodeClick={onNodeClick}
                   onEdgeClick={onEdgeClick}
+                  noPanClassName="nopan"
                   style={{ width: '100%', height: '100%', position: 'absolute', inset: 0 }}
-                  defaultViewport={{ x: 0, y: 0, zoom: 0.88 }}
+                  defaultViewport={{ x: 0, y: 0, zoom: (currentGroup === 'gruta' || currentGroup === 'parque') ? 1.75 : 0.88 }}
                   nodesDraggable={false}
                   nodesConnectable={false}
                   elementsSelectable={false}

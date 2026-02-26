@@ -3,6 +3,7 @@ import type { NodeProps } from 'reactflow'
 
 const TEXT = '#2D3748'
 
+
 /** Si el texto tiene más de un string (palabra), devuelve uno por línea para apilar en el ícono. */
 function getLabelLinesStacked(label: string): string[] {
   const words = label.replace(/\n/g, ' ').trim().split(/\s+/).filter(Boolean)
@@ -138,7 +139,7 @@ function StatusBadge({
 // Nodo para cañería de succión (círculo verde)
 export function SuctionNode({ data }: NodeProps) {
   return (
-    <div style={{ width: 'clamp(90px, 12vw, 140px)', height: 'clamp(90px, 12vw, 140px)', position: 'relative' }}>
+    <div className="nopan" style={{ width: 'clamp(90px, 12vw, 140px)', height: 'clamp(90px, 12vw, 140px)', position: 'relative' }}>
       <svg width="100%" height="100%" viewBox="0 0 120 120">
         <circle cx="60" cy="60" r="52" fill="#DFF7E3" stroke="#2F855A" strokeWidth="3" />
         <ShapeText text={data?.label ?? 'Cañería Succión'} />
@@ -157,7 +158,7 @@ export function PipeNode({ data }: NodeProps) {
   const lineStart = Math.max(0, Math.min(width, rawLineStart))
   const lineEnd = Math.max(lineStart, Math.min(width, rawLineEnd))
   return (
-    <div style={{ width, height: 18, position: 'relative' }}>
+    <div className="nopan" style={{ width, height: 18, position: 'relative' }}>
       <svg width="100%" height="100%" viewBox={`0 0 ${width} 18`}>
         <line x1={lineStart} y1="9" x2={lineEnd} y2="9" stroke="#4A90E2" strokeWidth="8" strokeLinecap="round" />
       </svg>
@@ -175,7 +176,7 @@ export function PipeNode({ data }: NodeProps) {
 
 export function PipeSegmentNode({ data }: NodeProps) {
   return (
-    <div style={{ width: 40, height: 40, position: 'relative' }}>
+    <div className="nopan" style={{ width: 40, height: 40, position: 'relative' }}>
       <svg width="100%" height="100%" viewBox="0 0 40 40">
         <circle cx="20" cy="20" r="16" fill="#DFF7E3" stroke="#2F855A" strokeWidth="3" />
         <text x="20" y="22" textAnchor="middle" fontSize="8" fill={TEXT}>Cañería</text>
@@ -198,7 +199,7 @@ export function TeeBarNode(_data: NodeProps) {
   const yBar = h
   const d = `M ${xCenter} 0 L ${xCenter} ${yBar} L ${xLeft} ${yBar} L ${xCenter} ${yBar} L ${xRight} ${yBar}`
   return (
-    <div style={{ width: w, height: h, position: 'relative' }}>
+    <div className="nopan" style={{ width: w, height: h, position: 'relative' }}>
       <svg width="100%" height="100%" viewBox={`0 0 ${w} ${h}`}>
         <path d={d} fill="none" stroke="#4A90E2" strokeWidth={strokeW} strokeLinecap="round" strokeLinejoin="round" />
       </svg>
@@ -211,7 +212,7 @@ export function TeeBarNode(_data: NodeProps) {
 
 export function StationNode({ data }: NodeProps) {
   return (
-    <div style={{ width: 'clamp(90px, 12vw, 140px)', height: 'clamp(90px, 12vw, 140px)', position: 'relative' }}>
+    <div className="nopan" style={{ width: 'clamp(90px, 12vw, 140px)', height: 'clamp(90px, 12vw, 140px)', position: 'relative' }}>
       <svg width="100%" height="100%" viewBox="0 0 120 120">
         <circle cx="60" cy="60" r="52" fill="#E9D8FD" stroke="#6B46C1" strokeWidth="3" />
         <ShapeText text={data?.label ?? 'Puesto'} />
@@ -238,6 +239,7 @@ export function StationNode({ data }: NodeProps) {
 export function ElectricNode({ data }: NodeProps) {
   return (
     <div
+      className="nopan"
       style={{
         width: 'clamp(90px, 12vw, 140px)',
         height: 'clamp(90px, 12vw, 140px)',
@@ -294,7 +296,7 @@ export function PumpNode({ data }: NodeProps) {
   const lineHeight = 11
   const fontSize = displayLines.length > 2 ? 9 : 10
   return (
-    <div style={{ width: 'clamp(90px, 12vw, 140px)', height: 'clamp(90px, 12vw, 140px)', position: 'relative' }}>
+    <div className="nopan" style={{ width: 'clamp(90px, 12vw, 140px)', height: 'clamp(90px, 12vw, 140px)', position: 'relative' }}>
       {showTopLabel && (
         <div
           style={{
@@ -341,7 +343,7 @@ export function PumpNode({ data }: NodeProps) {
 // Nodo Filtro: heptágono gris, más chico que el resto
 export function FilterNode({ data }: NodeProps) {
   return (
-    <div style={{ width: 'clamp(48px, 7vw, 64px)', height: 'clamp(48px, 7vw, 64px)', position: 'relative' }}>
+    <div className="nopan" style={{ width: 'clamp(48px, 7vw, 64px)', height: 'clamp(48px, 7vw, 64px)', position: 'relative' }}>
       <svg width="100%" height="100%" viewBox="0 0 100 100">
         <polygon
           points="50,12 80,26 87,58 66,84 34,84 13,58 20,26"
@@ -366,10 +368,10 @@ export function WaveServiceNode({ data }: NodeProps) {
   const dy = isLarge ? (lines.length > 2 ? 9 : 10) : (lines.length > 2 ? 9 : 11)
   const statusBottom = typeof data?.statusBottom === 'number' ? data.statusBottom : -14
   const sizeStyle = isLarge
-    ? { width: 'clamp(125px, 16vw, 170px)', height: 'clamp(85px, 11vw, 120px)' }
-    : { width: 'clamp(70px, 9vw, 100px)', height: 'clamp(50px, 7vw, 70px)' }
+    ? { width: 'clamp(125px, 16vw, 170px)', height: 'clamp(85px, 11vw, 120px)', position: 'relative' as const }
+    : { width: 'clamp(70px, 9vw, 100px)', height: 'clamp(50px, 7vw, 70px)', position: 'relative' as const }
   return (
-    <div style={{ ...sizeStyle, position: 'relative' }}>
+    <div className="nopan" style={sizeStyle}>
       <svg width="100%" height="100%" viewBox="0 0 120 80">
         <path
           d="M0 40 C25 18 45 18 60 40 C75 62 95 62 120 40 L120 80 L0 80 Z"
@@ -394,7 +396,7 @@ export function WaveServiceNode({ data }: NodeProps) {
 // Nodo para válvula (rombo/paralelogramo delineado)
 export function ValveNode({ data }: NodeProps) {
   return (
-    <div style={{ width: 'clamp(90px, 12vw, 140px)', height: 'clamp(90px, 12vw, 140px)', position: 'relative' }}>
+    <div className="nopan" style={{ width: 'clamp(90px, 12vw, 140px)', height: 'clamp(90px, 12vw, 140px)', position: 'relative' }}>
       <svg width="100%" height="100%" viewBox="0 0 120 120">
         <polygon points="60,10 110,60 60,110 10,60" fill="#C6F6D5" stroke="#2F855A" strokeWidth="3" />
         <ShapeText text={data?.label ?? 'Llave'} />
@@ -408,7 +410,7 @@ export function ValveNode({ data }: NodeProps) {
 
 export function RedValveNode({ data }: NodeProps) {
   return (
-    <div style={{ width: 'clamp(90px, 12vw, 140px)', height: 'clamp(90px, 12vw, 140px)', position: 'relative' }}>
+    <div className="nopan" style={{ width: 'clamp(90px, 12vw, 140px)', height: 'clamp(90px, 12vw, 140px)', position: 'relative' }}>
       <svg width="100%" height="100%" viewBox="0 0 120 120">
         <polygon points="60,10 110,60 60,110 10,60" fill="#FEB2B2" stroke="#C53030" strokeWidth="3" />
         <ShapeText text={data?.label ?? 'Llave'} />
@@ -423,7 +425,7 @@ export function RedValveNode({ data }: NodeProps) {
 // Nodo para servicios finales (círculo delineado)
 export function ServiceNode({ data }: NodeProps) {
   return (
-    <div style={{ width: 'clamp(90px, 12vw, 140px)', height: 'clamp(90px, 12vw, 140px)', position: 'relative' }}>
+    <div className="nopan" style={{ width: 'clamp(90px, 12vw, 140px)', height: 'clamp(90px, 12vw, 140px)', position: 'relative' }}>
       <svg width="100%" height="100%" viewBox="0 0 120 120">
         <path
           d="M60 12 C42 36 30 52 30 70 C30 92 43 106 60 106 C77 106 90 92 90 70 C90 52 78 36 60 12 Z"
@@ -443,7 +445,7 @@ export function ServiceNode({ data }: NodeProps) {
 // Nodo para válvula triangular (punta hacia abajo)
 export function TriangleValveNode({ data }: NodeProps) {
   return (
-    <div style={{ width: 'clamp(90px, 12vw, 140px)', height: 'clamp(90px, 12vw, 140px)', position: 'relative' }}>
+    <div className="nopan" style={{ width: 'clamp(90px, 12vw, 140px)', height: 'clamp(90px, 12vw, 140px)', position: 'relative' }}>
       <svg width="100%" height="100%" viewBox="0 0 120 120">
         <polygon points="60,108 110,20 10,20" fill="#FBD38D" stroke="#C05621" strokeWidth="3" />
         <ShapeText text={data?.label ?? 'Válvula'} fontSize={10} />
@@ -459,7 +461,7 @@ export function TriangleValveNode({ data }: NodeProps) {
 // Nodo para pulsador (elipse chata rosada)
 export function PulsadorNode({ data }: NodeProps) {
   return (
-    <div style={{ width: 'clamp(90px, 10vw, 120px)', height: 'clamp(40px, 6vw, 60px)', position: 'relative' }}>
+    <div className="nopan" style={{ width: 'clamp(90px, 10vw, 120px)', height: 'clamp(40px, 6vw, 60px)', position: 'relative' }}>
       <svg width="100%" height="100%" viewBox="0 0 120 60">
         <rect x="8" y="12" width="104" height="36" rx="18" ry="18" fill="#FED7E2" stroke="#D53F8C" strokeWidth="3" />
         <text x="50%" y="52%" textAnchor="middle" dominantBaseline="middle" fontSize="10" fill={TEXT}>
@@ -480,7 +482,7 @@ export function CloudServiceNode({ data }: NodeProps) {
   const fs = lines.length > 2 ? 8 : 10
   const dy = lines.length > 2 ? 10 : 12
   return (
-    <div style={{ width: 'clamp(90px, 12vw, 140px)', height: 'clamp(70px, 10vw, 110px)', position: 'relative' }}>
+    <div className="nopan" style={{ width: 'clamp(90px, 12vw, 140px)', height: 'clamp(70px, 10vw, 110px)', position: 'relative' }}>
       <svg width="100%" height="100%" viewBox="0 0 140 100">
         <path
           d="M40 70 C25 70 15 60 15 48 C15 36 25 27 38 27 C42 16 52 10 64 10 C78 10 90 18 94 30 C110 30 123 42 123 58 C123 73 111 84 96 84 L42 84 C30 84 20 78 20 68"
@@ -504,7 +506,7 @@ export function CloudServiceNode({ data }: NodeProps) {
 
 export function HydroSystemNode({ data }: NodeProps) {
   return (
-    <div style={{ width: 'clamp(90px, 12vw, 140px)', height: 'clamp(90px, 12vw, 140px)', position: 'relative' }}>
+    <div className="nopan" style={{ width: 'clamp(90px, 12vw, 140px)', height: 'clamp(90px, 12vw, 140px)', position: 'relative' }}>
       <svg width="100%" height="100%" viewBox="0 0 120 120">
         <polygon points="60,8 108,42 90,108 30,108 12,42" fill="#A0AEC0" stroke="#4A5568" strokeWidth="2" />
         <ShapeText text={data?.label ?? 'Sist. Hidro'} color="#FFFFFF" fontSize={10} />
