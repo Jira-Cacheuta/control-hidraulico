@@ -8,6 +8,11 @@ import './App.css'
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? ''
 const ISSUE_POLL_MS = 10000
+
+/** Normaliza texto para búsqueda: minúsculas y sin tildes. */
+function normalizeForSearch(s: string): string {
+  return (s || '').toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '')
+}
 const VIEW_BOUNDS: [[number, number], [number, number]] = [[-80, -80], [860, 1100]]
 const WATER_FIELD_ID = 'customfield_11815'
 const WATER_FIELD_LABEL = 'Alimentación de agua'
@@ -4092,6 +4097,7 @@ function App() {
   const [serviciosTransitionLoading, setServiciosTransitionLoading] = useState(false)
   const [serviciosTransitionSaving, setServiciosTransitionSaving] = useState(false)
   const [serviciosGroupFilter, setServiciosGroupFilter] = useState<'gruta' | 'parque'>('gruta')
+  const [serviciosQuery, setServiciosQuery] = useState('')
   const diagramAreaRef = useRef<HTMLDivElement>(null)
   const [diagramAreaHeight, setDiagramAreaHeight] = useState<number | null>(null)
 
@@ -5482,7 +5488,7 @@ function App() {
               style={{ touchAction: 'pan-y' }}
             >
               <Box px={3} pb={2} flexShrink={0}>
-                <HStack mb={3} spacing={2} flexWrap="wrap">
+                <HStack mb={3} spacing={2} flexWrap="wrap" align="center">
                   <Button
                     size="sm"
                     variant={serviciosGroupFilter === 'gruta' ? 'solid' : 'outline'}
@@ -5499,6 +5505,17 @@ function App() {
                   >
                     Parque
                   </Button>
+                  <Input
+                    size="sm"
+                    placeholder="Buscar por nombre..."
+                    value={serviciosQuery}
+                    onChange={(e) => setServiciosQuery(e.target.value)}
+                    maxW={{ base: '100%', sm: '220px' }}
+                    flex={1}
+                    minW="140px"
+                    bg="white"
+                    borderColor="gray.300"
+                  />
                 </HStack>
               </Box>
               <Box
@@ -5523,7 +5540,17 @@ function App() {
                       <Heading size="sm" mb={3} color="gray.800">
                         {groupLabel}
                       </Heading>
-                      {Object.entries(bySystem).map(([systemLabel, services]) => (
+                      {Object.entries(bySystem)
+                        .map(([systemLabel, services]) => {
+                          const filtered = services.filter((s) => {
+                            if (!serviciosQuery.trim()) return true
+                            const text = (s.issueKey && serviceIssuesData[s.issueKey]?.summary) || s.label || s.id
+                            return normalizeForSearch(text).includes(normalizeForSearch(serviciosQuery.trim()))
+                          })
+                          return [systemLabel, filtered] as const
+                        })
+                        .filter(([, filtered]) => filtered.length > 0)
+                        .map(([systemLabel, services]) => (
                         <Box key={systemLabel} mb={4}>
                           <Text fontSize="sm" fontWeight="bold" color="gray.800" mb={2}>
                             {systemLabel}
@@ -6457,7 +6484,7 @@ function App() {
               minH={0}
               style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }}
             >
-              <HStack mb={3} spacing={2} flexWrap="wrap">
+              <HStack mb={3} spacing={2} flexWrap="wrap" align="center">
                 <Button
                   size="sm"
                   variant={serviciosGroupFilter === 'gruta' ? 'solid' : 'outline'}
@@ -6474,6 +6501,17 @@ function App() {
                 >
                   Parque
                 </Button>
+                <Input
+                  size="sm"
+                  placeholder="Buscar por nombre..."
+                  value={serviciosQuery}
+                  onChange={(e) => setServiciosQuery(e.target.value)}
+                  maxW="260px"
+                  flex={1}
+                  minW="160px"
+                  bg="white"
+                  borderColor="gray.300"
+                />
               </HStack>
               {serviceIssuesLoading ? (
                 <Flex justify="center" align="center" h="50%">
@@ -6488,7 +6526,17 @@ function App() {
                     <Heading size="sm" mb={3} color="gray.800">
                       {groupLabel}
                     </Heading>
-                    {Object.entries(bySystem).map(([systemLabel, services]) => (
+                    {Object.entries(bySystem)
+                      .map(([systemLabel, services]) => {
+                        const filtered = services.filter((s) => {
+                          if (!serviciosQuery.trim()) return true
+                          const text = (s.issueKey && serviceIssuesData[s.issueKey]?.summary) || s.label || s.id
+                          return normalizeForSearch(text).includes(normalizeForSearch(serviciosQuery.trim()))
+                        })
+                        return [systemLabel, filtered] as const
+                      })
+                      .filter(([, filtered]) => filtered.length > 0)
+                      .map(([systemLabel, services]) => (
                       <Box key={systemLabel} mb={4}>
                         <Text fontSize="sm" fontWeight="bold" color="gray.800" mb={2}>
                           {systemLabel}
