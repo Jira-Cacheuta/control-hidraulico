@@ -5182,6 +5182,36 @@ function App() {
     }
   }
 
+  const handleServiciosTransitionDirect = async (transitionId: string) => {
+    if (!serviciosModalItem?.key) return
+    const key = serviciosModalItem.key
+    try {
+      setServiciosTransitionSaving(true)
+      const res = await fetch(`${API_BASE_URL}/api/issues/${key}/transition`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transitionId })
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err?.error || 'Error al actualizar')
+      }
+      toast({ title: 'Estado actualizado', status: 'success', duration: 1500 })
+      const issuesRes = await fetch(`${API_BASE_URL}/api/issues?keys=${encodeURIComponent(key)}`)
+      const issuesData = await issuesRes.json().catch(() => ({}))
+      const issue = (issuesData.issues || []).find((i: { key?: string }) => i?.key === key)
+      setServiceIssuesData((prev) => ({
+        ...prev,
+        [key]: { summary: issue?.summary ?? prev[key]?.summary, status: issue?.status?.name }
+      }))
+      setServiciosModalItem((prev) => (prev ? { ...prev, status: issue?.status?.name } : null))
+    } catch (e: unknown) {
+      toast({ title: 'No se pudo actualizar el estado', description: String(e instanceof Error ? e.message : e), status: 'error', duration: 2000 })
+    } finally {
+      setServiciosTransitionSaving(false)
+    }
+  }
+
   const handleControlTransition = async (transitionId: string) => {
     if (!controlEpicModalItem?.key) return
     const key = controlEpicModalItem.key
@@ -5389,6 +5419,21 @@ function App() {
     if (/yellow|amarillo|🟨/.test(name) || /yellow|amarillo|🟨/.test(toName)) return <span title={t.name}><YellowSquare /></span>
     if (/red|rojo|🟥/.test(name) || /red|rojo|🟥/.test(toName)) return <span title={t.name}><RedSquare /></span>
     return transitionBadge(t.name ?? '')
+  }
+
+  function isGreenTransition(t: { name?: string; toName?: string }) {
+    const name = (t.name || '').toLowerCase().trim()
+    const toName = (t.toName || '').toLowerCase().trim()
+    return /green|verde|🟩/.test(name) || /green|verde|🟩/.test(toName)
+  }
+
+  function isYellowOrRedTransition(t: { name?: string; toName?: string }) {
+    const name = (t.name || '').toLowerCase().trim()
+    const toName = (t.toName || '').toLowerCase().trim()
+    return (
+      /yellow|amarillo|🟨/.test(name) || /yellow|amarillo|🟨/.test(toName) ||
+      /red|rojo|🟥/.test(name) || /red|rojo|🟥/.test(toName)
+    )
   }
 
   const isWaterFieldNode = WATER_FIELD_ISSUE_KEYS.includes(transitionNode?.data?.issueKey ?? '')
@@ -5679,7 +5724,7 @@ function App() {
                                 key={t.id}
                                 size="sm"
                                 variant="outline"
-                                onClick={() => openServiciosNameModal(t.id)}
+                                onClick={() => (isYellowOrRedTransition(t) ? openServiciosNameModal(t.id) : handleServiciosTransitionDirect(t.id))}
                                 isDisabled={serviciosTransitionSaving}
                               >
                                 {transitionButtonLabel(t)}
@@ -5902,7 +5947,13 @@ function App() {
                           key={t.id}
                           size="sm"
                           variant="outline"
-                          onClick={() => (t.requiresBreakdownComment ? openDiagramBreakdownModal(t.id, t.name) : isDiagramServiceNode ? openDiagramNameModal(t.id) : handleTransition(t.id))}
+                          onClick={() =>
+                            t.requiresBreakdownComment
+                              ? openDiagramBreakdownModal(t.id, t.name)
+                              : isDiagramServiceNode && isYellowOrRedTransition(t)
+                                ? openDiagramNameModal(t.id)
+                                : handleTransition(t.id)
+                          }
                         >
                           {transitionButtonLabel(t)}
                         </Button>
@@ -6210,7 +6261,13 @@ function App() {
                         key={t.id}
                         size="sm"
                         variant="outline"
-                        onClick={() => (t.requiresBreakdownComment ? openDiagramBreakdownModal(t.id, t.name) : isDiagramServiceNode ? openDiagramNameModal(t.id) : handleTransition(t.id))}
+                        onClick={() =>
+                          t.requiresBreakdownComment
+                            ? openDiagramBreakdownModal(t.id, t.name)
+                            : isDiagramServiceNode && isYellowOrRedTransition(t)
+                              ? openDiagramNameModal(t.id)
+                              : handleTransition(t.id)
+                        }
                       >
                         {transitionButtonLabel(t)}
                       </Button>
@@ -6739,7 +6796,7 @@ function App() {
                                 key={t.id}
                                 size="sm"
                                 variant="outline"
-                                onClick={() => openServiciosNameModal(t.id)}
+                                onClick={() => (isYellowOrRedTransition(t) ? openServiciosNameModal(t.id) : handleServiciosTransitionDirect(t.id))}
                                 isDisabled={serviciosTransitionSaving}
                               >
                                 {transitionButtonLabel(t)}
