@@ -5182,36 +5182,6 @@ function App() {
     }
   }
 
-  const handleServiciosTransition = async (transitionId: string) => {
-    if (!serviciosModalItem?.key) return
-    const key = serviciosModalItem.key
-    try {
-      setServiciosTransitionSaving(true)
-      const res = await fetch(`${API_BASE_URL}/api/issues/${key}/transition`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ transitionId })
-      })
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}))
-        throw new Error(err?.error || 'Error al actualizar')
-      }
-      toast({ title: 'Estado actualizado', status: 'success', duration: 1500 })
-      const issuesRes = await fetch(`${API_BASE_URL}/api/issues?keys=${encodeURIComponent(key)}`)
-      const issuesData = await issuesRes.json().catch(() => ({}))
-      const issue = (issuesData.issues || []).find((i: { key?: string }) => i?.key === key)
-      setServiceIssuesData((prev) => ({
-        ...prev,
-        [key]: { summary: issue?.summary ?? prev[key]?.summary, status: issue?.status?.name }
-      }))
-      setServiciosModalItem((prev) => (prev ? { ...prev, status: issue?.status?.name } : null))
-    } catch (e: unknown) {
-      toast({ title: 'No se pudo actualizar el estado', description: String(e instanceof Error ? e.message : e), status: 'error', duration: 2000 })
-    } finally {
-      setServiciosTransitionSaving(false)
-    }
-  }
-
   const handleControlTransition = async (transitionId: string) => {
     if (!controlEpicModalItem?.key) return
     const key = controlEpicModalItem.key
