@@ -4098,6 +4098,10 @@ function App() {
   const [serviciosTransitionSaving, setServiciosTransitionSaving] = useState(false)
   const [serviciosGroupFilter, setServiciosGroupFilter] = useState<'gruta' | 'parque'>('gruta')
   const [serviciosQuery, setServiciosQuery] = useState('')
+  const [serviciosNameModalOpen, setServiciosNameModalOpen] = useState(false)
+  const [serviciosName, setServiciosName] = useState('')
+  const [serviciosPendingTransitionId, setServiciosPendingTransitionId] = useState<string | null>(null)
+  const [diagramPendingTransitionId, setDiagramPendingTransitionId] = useState<string | null>(null)
   const diagramAreaRef = useRef<HTMLDivElement>(null)
   const [diagramAreaHeight, setDiagramAreaHeight] = useState<number | null>(null)
 
@@ -5103,6 +5107,81 @@ function App() {
     }
   }
 
+  const openServiciosNameModal = (transitionId: string) => {
+    if (!serviciosModalItem?.key) return
+    setServiciosPendingTransitionId(transitionId)
+    setServiciosName('')
+    setServiciosNameModalOpen(true)
+  }
+
+  const closeServiciosNameModal = () => {
+    setServiciosNameModalOpen(false)
+    setServiciosPendingTransitionId(null)
+    setDiagramPendingTransitionId(null)
+    setServiciosName('')
+  }
+
+  const isDiagramServiceNode = transitionNode?.type === 'service' || transitionNode?.type === 'cloudService'
+
+  const openDiagramNameModal = (transitionId: string) => {
+    if (!transitionNode?.data?.issueKey) return
+    setDiagramPendingTransitionId(transitionId)
+    setServiciosName('')
+    setServiciosNameModalOpen(true)
+  }
+
+  const handleServiciosTransitionWithName = async () => {
+    const name = serviciosName.trim()
+    if (!name) {
+      toast({ title: 'Indicá tu nombre antes de confirmar', status: 'warning', duration: 2500 })
+      return
+    }
+    const fromDiagram = Boolean(diagramPendingTransitionId && transitionNode?.data?.issueKey)
+    const key = fromDiagram ? (transitionNode!.data!.issueKey as string) : serviciosModalItem?.key
+    const transitionId = fromDiagram ? diagramPendingTransitionId : serviciosPendingTransitionId
+    if (!key || !transitionId) return
+    try {
+      setServiciosTransitionSaving(true)
+      const res = await fetch(`${API_BASE_URL}/api/issues/${key}/transition`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transitionId })
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err?.error || 'Error al actualizar')
+      }
+      const commentRes = await fetch(`${API_BASE_URL}/api/issues/${key}/comment`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ body: `Cambio de estado realizado desde la web por: ${name}` })
+      })
+      if (!commentRes.ok) {
+        const err = await commentRes.json().catch(() => ({}))
+        throw new Error(err?.error || 'Error al guardar el comentario')
+      }
+      toast({ title: 'Estado actualizado y comentario registrado', status: 'success', duration: 1500 })
+      if (fromDiagram) {
+        closeTransitionModal()
+        await loadIssues()
+      } else {
+        const issuesRes = await fetch(`${API_BASE_URL}/api/issues?keys=${encodeURIComponent(key)}`)
+        const issuesData = await issuesRes.json().catch(() => ({}))
+        const issue = (issuesData.issues || []).find((i: { key?: string }) => i?.key === key)
+        setServiceIssuesData((prev) => ({
+          ...prev,
+          [key]: { summary: issue?.summary ?? prev[key]?.summary, status: issue?.status?.name }
+        }))
+        setServiciosModalItem((prev) => (prev ? { ...prev, status: issue?.status?.name } : null))
+      }
+      closeServiciosNameModal()
+    } catch (e: unknown) {
+      toast({ title: 'No se pudo actualizar el estado', description: String(e instanceof Error ? e.message : e), status: 'error', duration: 2000 })
+    } finally {
+      setServiciosTransitionSaving(false)
+    }
+  }
+
   const handleServiciosTransition = async (transitionId: string) => {
     if (!serviciosModalItem?.key) return
     const key = serviciosModalItem.key
@@ -5630,7 +5709,7 @@ function App() {
                                 key={t.id}
                                 size="sm"
                                 variant="outline"
-                                onClick={() => handleServiciosTransition(t.id)}
+                                onClick={() => openServiciosNameModal(t.id)}
                                 isDisabled={serviciosTransitionSaving}
                               >
                                 {transitionButtonLabel(t)}
@@ -5644,6 +5723,31 @@ function App() {
                 <ModalFooter>
                   <Button size="sm" variant="ghost" onClick={closeServiciosModal}>
                     Cancelar
+                  </Button>
+                </ModalFooter>
+              </ModalContent>
+            </Modal>
+            <Modal isOpen={serviciosNameModalOpen} onClose={closeServiciosNameModal} isCentered size="xs">
+              <ModalOverlay bg="blackAlpha.600" />
+              <ModalContent maxW="92vw">
+                <ModalHeader>¿Quién realiza el cambio?</ModalHeader>
+                <ModalBody>
+                  <Text fontSize="sm" mb={2} color="gray.600">
+                    Escribí tu nombre para registrarlo en Jira junto con el cambio de estado.
+                  </Text>
+                  <Input
+                    size="sm"
+                    placeholder="Nombre y apellido"
+                    value={serviciosName}
+                    onChange={(e) => setServiciosName(e.target.value)}
+                  />
+                </ModalBody>
+                <ModalFooter>
+                  <Button size="sm" variant="ghost" mr={2} onClick={closeServiciosNameModal}>
+                    Cancelar
+                  </Button>
+                  <Button size="sm" colorScheme="blue" onClick={handleServiciosTransitionWithName} isDisabled={serviciosTransitionSaving}>
+                    {serviciosTransitionSaving ? <Spinner size="xs" /> : 'Confirmar cambio'}
                   </Button>
                 </ModalFooter>
               </ModalContent>
@@ -5828,7 +5932,7 @@ function App() {
                           key={t.id}
                           size="sm"
                           variant="outline"
-                          onClick={() => (t.requiresBreakdownComment ? openDiagramBreakdownModal(t.id, t.name) : handleTransition(t.id))}
+                          onClick={() => (t.requiresBreakdownComment ? openDiagramBreakdownModal(t.id, t.name) : isDiagramServiceNode ? openDiagramNameModal(t.id) : handleTransition(t.id))}
                         >
                           {transitionButtonLabel(t)}
                         </Button>
@@ -6025,6 +6129,31 @@ function App() {
               </ModalFooter>
             </ModalContent>
           </Modal>
+          <Modal isOpen={serviciosNameModalOpen} onClose={closeServiciosNameModal} isCentered size="xs">
+            <ModalOverlay bg="blackAlpha.600" />
+            <ModalContent maxW="92vw">
+              <ModalHeader>¿Quién realiza el cambio?</ModalHeader>
+              <ModalBody>
+                <Text fontSize="sm" mb={2} color="gray.600">
+                  Escribí tu nombre para registrarlo en Jira junto con el cambio de estado.
+                </Text>
+                <Input
+                  size="sm"
+                  placeholder="Nombre y apellido"
+                  value={serviciosName}
+                  onChange={(e) => setServiciosName(e.target.value)}
+                />
+              </ModalBody>
+              <ModalFooter>
+                <Button size="sm" variant="ghost" mr={2} onClick={closeServiciosNameModal}>
+                  Cancelar
+                </Button>
+                <Button size="sm" colorScheme="blue" onClick={handleServiciosTransitionWithName} isDisabled={serviciosTransitionSaving}>
+                  {serviciosTransitionSaving ? <Spinner size="xs" /> : 'Confirmar cambio'}
+                </Button>
+              </ModalFooter>
+            </ModalContent>
+          </Modal>
           <Box
             position="absolute"
             inset={0}
@@ -6111,7 +6240,7 @@ function App() {
                         key={t.id}
                         size="sm"
                         variant="outline"
-                        onClick={() => (t.requiresBreakdownComment ? openDiagramBreakdownModal(t.id, t.name) : handleTransition(t.id))}
+                        onClick={() => (t.requiresBreakdownComment ? openDiagramBreakdownModal(t.id, t.name) : isDiagramServiceNode ? openDiagramNameModal(t.id) : handleTransition(t.id))}
                       >
                         {transitionButtonLabel(t)}
                       </Button>
@@ -6307,6 +6436,31 @@ function App() {
                   {controlTransitionSaving ? <Spinner size="xs" /> : 'Confirmar cambio de estado'}
                 </Button>
               </Stack>
+            </ModalFooter>
+          </ModalContent>
+        </Modal>
+        <Modal isOpen={serviciosNameModalOpen} onClose={closeServiciosNameModal} isCentered size="sm">
+          <ModalOverlay bg="blackAlpha.600" />
+          <ModalContent>
+            <ModalHeader>¿Quién realiza el cambio?</ModalHeader>
+            <ModalBody>
+              <Text fontSize="sm" mb={2} color="gray.600">
+                Escribí tu nombre para registrarlo en Jira junto con el cambio de estado.
+              </Text>
+              <Input
+                size="sm"
+                placeholder="Nombre y apellido"
+                value={serviciosName}
+                onChange={(e) => setServiciosName(e.target.value)}
+              />
+            </ModalBody>
+            <ModalFooter>
+              <Button size="sm" variant="ghost" mr={2} onClick={closeServiciosNameModal}>
+                Cancelar
+              </Button>
+              <Button size="sm" colorScheme="blue" onClick={handleServiciosTransitionWithName} isDisabled={serviciosTransitionSaving}>
+                {serviciosTransitionSaving ? <Spinner size="xs" /> : 'Confirmar cambio'}
+              </Button>
             </ModalFooter>
           </ModalContent>
         </Modal>
@@ -6615,7 +6769,7 @@ function App() {
                                 key={t.id}
                                 size="sm"
                                 variant="outline"
-                                onClick={() => handleServiciosTransition(t.id)}
+                                onClick={() => openServiciosNameModal(t.id)}
                                 isDisabled={serviciosTransitionSaving}
                               >
                                 {transitionButtonLabel(t)}
@@ -6629,6 +6783,31 @@ function App() {
                 <ModalFooter>
                   <Button size="sm" variant="ghost" onClick={closeServiciosModal}>
                     Cancelar
+                  </Button>
+                </ModalFooter>
+              </ModalContent>
+            </Modal>
+            <Modal isOpen={serviciosNameModalOpen} onClose={closeServiciosNameModal} isCentered size="sm">
+              <ModalOverlay bg="blackAlpha.600" />
+              <ModalContent>
+                <ModalHeader>¿Quién realiza el cambio?</ModalHeader>
+                <ModalBody>
+                  <Text fontSize="sm" mb={2} color="gray.600">
+                    Escribí tu nombre para registrarlo en Jira junto con el cambio de estado.
+                  </Text>
+                  <Input
+                    size="sm"
+                    placeholder="Nombre y apellido"
+                    value={serviciosName}
+                    onChange={(e) => setServiciosName(e.target.value)}
+                  />
+                </ModalBody>
+                <ModalFooter>
+                  <Button size="sm" variant="ghost" mr={2} onClick={closeServiciosNameModal}>
+                    Cancelar
+                  </Button>
+                  <Button size="sm" colorScheme="blue" onClick={handleServiciosTransitionWithName} isDisabled={serviciosTransitionSaving}>
+                    {serviciosTransitionSaving ? <Spinner size="xs" /> : 'Confirmar cambio'}
                   </Button>
                 </ModalFooter>
               </ModalContent>
