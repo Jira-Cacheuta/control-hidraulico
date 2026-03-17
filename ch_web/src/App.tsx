@@ -5421,12 +5421,6 @@ function App() {
     return transitionBadge(t.name ?? '')
   }
 
-  function isGreenTransition(t: { name?: string; toName?: string }) {
-    const name = (t.name || '').toLowerCase().trim()
-    const toName = (t.toName || '').toLowerCase().trim()
-    return /green|verde|🟩/.test(name) || /green|verde|🟩/.test(toName)
-  }
-
   function isYellowOrRedTransition(t: { name?: string; toName?: string }) {
     const name = (t.name || '').toLowerCase().trim()
     const toName = (t.toName || '').toLowerCase().trim()
