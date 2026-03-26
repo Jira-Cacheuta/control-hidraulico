@@ -254,7 +254,7 @@ export function ElectricNode({ data }: NodeProps) {
       <svg width="100%" height="100%" viewBox="0 0 120 120" style={{ display: 'block' }}>
         <polygon points="62,10 30,70 58,70 46,110 90,50 62,50" fill="#ECC94B" stroke="#B7791F" strokeWidth="3" />
       </svg>
-      <div style={{ marginTop: -6, fontSize: 12, color: TEXT, textAlign: 'center', lineHeight: 1 }}>
+      <div style={{ marginTop: -6, fontSize: 12, color: 'var(--ch-external-label-color, #2D3748)', textAlign: 'center', lineHeight: 1 }}>
         {data?.label ?? 'Comp. Eléctrico'}
       </div>
       {data?.status && (() => {

@@ -974,7 +974,7 @@ const gruta4NodesInitial: Node[] = [
     type: 'pump',
     position: { x: 140, y: 120 },
     draggable: false,
-    data: { label: 'Bomba sumergible', issueKey: 'CH-973', labelPosition: 'top' }
+    data: { label: 'Bomba\nsumergible', issueKey: 'CH-973' }
   },
   {
     id: 'gruta4-puesto',
