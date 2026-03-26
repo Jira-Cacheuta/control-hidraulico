@@ -137,6 +137,102 @@
   color: #718096;
 }
 
+.ch-dark .menu-button {
+  border-color: #4B5563;
+  background: #1F2937;
+}
+
+.ch-dark .menu-button:hover {
+  background: #374151;
+}
+
+.ch-dark .menu-button span {
+  background: #E5E7EB;
+}
+
+.ch-dark .menu-dropdown {
+  background: #1F2937;
+  border-color: #374151;
+}
+
+.ch-dark .menu-header {
+  border-bottom-color: #374151;
+}
+
+.ch-dark .menu-title,
+.ch-dark .menu-back,
+.ch-dark .menu-item,
+.ch-dark .menu-subtitle,
+.ch-dark .menu-empty {
+  color: #E5E7EB;
+}
+
+.ch-dark .menu-back:hover,
+.ch-dark .menu-item:hover {
+  background: #374151;
+}
+
+.ch-dark .menu-item.active {
+  background: #1E3A8A;
+  color: #DBEAFE;
+}
+
+.ch-dark .chakra-modal__content,
+body.ch-dark .chakra-modal__content {
+  background: #1F2937;
+  color: #F3F4F6;
+  border: 1px solid #374151;
+}
+
+.ch-dark .chakra-modal__header,
+.ch-dark .chakra-modal__body,
+.ch-dark .chakra-modal__footer,
+body.ch-dark .chakra-modal__header,
+body.ch-dark .chakra-modal__body,
+body.ch-dark .chakra-modal__footer {
+  color: #F3F4F6;
+}
+
+.ch-dark .chakra-modal__content .chakra-text,
+.ch-dark .chakra-modal__content .chakra-form__label,
+body.ch-dark .chakra-modal__content .chakra-text,
+body.ch-dark .chakra-modal__content .chakra-form__label {
+  color: #E5E7EB;
+}
+
+.ch-dark .chakra-modal__content .chakra-input,
+.ch-dark .chakra-modal__content .chakra-select,
+.ch-dark .chakra-modal__content .chakra-textarea,
+body.ch-dark .chakra-modal__content .chakra-input,
+body.ch-dark .chakra-modal__content .chakra-select,
+body.ch-dark .chakra-modal__content .chakra-textarea {
+  background: #111827;
+  color: #F9FAFB;
+  border-color: #4B5563;
+}
+
+.ch-dark .chakra-modal__content .chakra-select option,
+body.ch-dark .chakra-modal__content .chakra-select option {
+  background: #0F172A;
+  color: #F9FAFB;
+}
+
+.ch-dark .chakra-modal__content .chakra-select option:checked,
+body.ch-dark .chakra-modal__content .chakra-select option:checked {
+  background: #2563EB;
+  color: #FFFFFF;
+}
+
+.ch-dark .chakra-modal__content .chakra-button--ghost,
+body.ch-dark .chakra-modal__content .chakra-button--ghost {
+  color: #E5E7EB !important;
+}
+
+.ch-dark .chakra-modal__content .chakra-button--ghost:hover,
+body.ch-dark .chakra-modal__content .chakra-button--ghost:hover {
+  background: #374151;
+}
+
 .logo {
   height: 6em;
   padding: 1.5em;

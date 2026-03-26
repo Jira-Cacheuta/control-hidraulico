@@ -192,6 +192,19 @@ const EPICS_EXCLUDED_FROM_SELECTOR = [
   '4-Duchas'
 ]
 
+const WATER_FEED_SYSTEM_BY_VALVE_KEY = {
+  'CH-997': '1-Arriba',
+  'CH-1022': '2-BTV',
+  'CH-1038': '3-JFV',
+  'CH-1062': '4-Duchas'
+}
+
+const WATER_FEED_PIPE_KEYS = {
+  pozo19: 'CH-984',
+  pozoLalo: 'CH-990',
+  pozoLuisa: 'CH-996'
+}
+
 app.get('/api/epics', async (req, res) => {
   try {
     const jira = getJiraClient()
@@ -435,6 +448,33 @@ app.get('/api/issues', async (req, res) => {
   } catch (error) {
     const message = error?.response?.data?.errorMessages || error?.response?.data?.errors?.join?.(' ') || error?.message
     console.error('[GET /api/issues]', message, error?.response?.status, error?.response?.data)
+    res.status(500).json({ error: message })
+  }
+})
+
+// Relaciones activas de alimentación en Pozos leyendo links reales de Jira.
+// Se consideran links tipo "blocks" entre cañerías (CH-984/990/996) y llaves rojas del parque.
+app.get('/api/water-feeds', async (_req, res) => {
+  try {
+    const jira = getJiraClient()
+    const relations = { pozo19: [], pozoLalo: [], pozoLuisa: [] }
+
+    for (const [pozoId, pipeKey] of Object.entries(WATER_FEED_PIPE_KEYS)) {
+      const issue = await getIssueWithLinks(jira, pipeKey, null)
+      const links = issue?.fields?.issuelinks || []
+      for (const link of links) {
+        if (!isLinkTypeMatch(link, 'blocks') && !isLinkTypeMatch(link, 'is blocked by')) continue
+        const otherKey = getOtherIssueKey(link, pipeKey)
+        if (!otherKey) continue
+        const systemLabel = WATER_FEED_SYSTEM_BY_VALVE_KEY[otherKey]
+        if (!systemLabel) continue
+        if (!relations[pozoId].includes(systemLabel)) relations[pozoId].push(systemLabel)
+      }
+    }
+
+    res.json({ relations })
+  } catch (error) {
+    const message = error?.response?.data?.errorMessages || error?.message
     res.status(500).json({ error: message })
   }
 })

@@ -17,6 +17,17 @@ const VIEW_BOUNDS: [[number, number], [number, number]] = [[-80, -80], [860, 110
 const WATER_FIELD_ID = 'customfield_11815'
 const WATER_FIELD_LABEL = 'Alimentación de agua'
 const WATER_FIELD_ISSUE_KEYS = ['CH-997', 'CH-1022', 'CH-1038', 'CH-1062']
+const WATER_FEED_SYSTEM_BY_ISSUE_KEY: Record<string, string> = {
+  'CH-997': '1-Arriba',
+  'CH-1022': '2-BTV',
+  'CH-1038': '3-JFV',
+  'CH-1062': '4-Duchas'
+}
+const POZO_PIPE_NODE_BY_SYSTEM: Record<string, string> = {
+  pozo19: 'pozo19-cañeria',
+  pozoLalo: 'pozoLalo-cañeria',
+  pozoLuisa: 'pozoLuisa-cañeria'
+}
 const SYSTEMS = [
   { id: 'gruta1', label: 'Sistema Gruta N°1', group: 'gruta' },
   { id: 'hidro', label: 'Sistema Hidro', group: 'gruta' },
@@ -4067,6 +4078,14 @@ function App() {
   const [pumpSelectedKey, setPumpSelectedKey] = useState('')
   const [puestoActivePumps, setPuestoActivePumps] = useState<Record<string, string | null>>({})
   const [menuOpen, setMenuOpen] = useState(false)
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    try {
+      if (typeof window === 'undefined') return false
+      return window.localStorage.getItem('ch_theme_mode') === 'dark'
+    } catch {
+      return false
+    }
+  })
   const [currentSystem, setCurrentSystem] = useState('gruta1')
   const [currentGroup, setCurrentGroup] = useState('gruta')
   const [menuLevel, setMenuLevel] = useState<'group' | 'system'>('group')
@@ -4102,6 +4121,26 @@ function App() {
   const [serviciosName, setServiciosName] = useState('')
   const [serviciosPendingTransitionId, setServiciosPendingTransitionId] = useState<string | null>(null)
   const [diagramPendingTransitionId, setDiagramPendingTransitionId] = useState<string | null>(null)
+  const [waterFeedSelections, setWaterFeedSelections] = useState<Record<string, string[]>>({})
+  const [waterFeedLinks, setWaterFeedLinks] = useState<Record<'pozo19' | 'pozoLalo' | 'pozoLuisa', string[]>>({
+    pozo19: [],
+    pozoLalo: [],
+    pozoLuisa: []
+  })
+  const [stickyPozoFeedRelations, setStickyPozoFeedRelations] = useState<Record<'pozo19' | 'pozoLalo' | 'pozoLuisa', string[]>>(() => {
+    try {
+      const raw = typeof window !== 'undefined' ? window.sessionStorage.getItem('ch_pozo_feed_relations') : null
+      if (!raw) return { pozo19: [], pozoLalo: [], pozoLuisa: [] }
+      const parsed = JSON.parse(raw)
+      return {
+        pozo19: Array.isArray(parsed?.pozo19) ? parsed.pozo19 : [],
+        pozoLalo: Array.isArray(parsed?.pozoLalo) ? parsed.pozoLalo : [],
+        pozoLuisa: Array.isArray(parsed?.pozoLuisa) ? parsed.pozoLuisa : []
+      }
+    } catch {
+      return { pozo19: [], pozoLalo: [], pozoLuisa: [] }
+    }
+  })
   const diagramAreaRef = useRef<HTMLDivElement>(null)
   const [diagramAreaHeight, setDiagramAreaHeight] = useState<number | null>(null)
 
@@ -4116,6 +4155,50 @@ function App() {
 
   const currentSystemLabel = SYSTEMS.find((sys) => sys.id === currentSystem)?.label ?? 'Sistema'
   const displayLabel = currentGroup === 'control' ? 'Control' : currentGroup === 'servicios' ? 'Servicios' : currentSystemLabel
+  const appBg = isDarkMode ? '#111827' : '#F7FAFC'
+  const panelBg = isDarkMode ? '#1F2937' : '#FFFFFF'
+  const panelBorder = isDarkMode ? '#374151' : '#E2E8F0'
+  const textMuted = isDarkMode ? '#D1D5DB' : '#4A5568'
+  const flowGridColor = isDarkMode ? '#374151' : '#EDF2F7'
+  const listOverlayBg = isDarkMode ? '#111827' : '#F7FAFC'
+  const listInputBg = isDarkMode ? '#1F2937' : '#FFFFFF'
+  const listInputBorder = isDarkMode ? '#4B5563' : '#D1D5DB'
+  const listHeadingColor = isDarkMode ? '#F3F4F6' : '#1F2937'
+  const listCardBg = isDarkMode ? '#111827' : '#FFFFFF'
+  const listCardBorder = isDarkMode ? '#4B5563' : '#E2E8F0'
+  const listCardHoverBg = isDarkMode ? '#1F2937' : '#F7FAFC'
+  const listCardText = isDarkMode ? '#F9FAFB' : '#1F2937'
+  const listCardMeta = isDarkMode ? '#9CA3AF' : '#6B7280'
+  const compatibleActiveBg = isDarkMode ? '#14532D' : '#F0FFF4'
+  const compatibleActiveBorder = isDarkMode ? '#16A34A' : '#68D391'
+  const compatibleInactiveBg = isDarkMode ? '#7C2D12' : '#FFFAF0'
+  const compatibleInactiveBorder = isDarkMode ? '#FB923C' : '#F6AD55'
+  const compatibleTitleColor = isDarkMode ? '#F9FAFB' : '#1F2937'
+  const compatibleMetaColor = isDarkMode ? '#E5E7EB' : '#4A5568'
+  const modalGhostColor = isDarkMode ? '#E5E7EB' : '#4A5568'
+  const modalGhostHoverBg = isDarkMode ? '#374151' : '#EDF2F7'
+  const modalActionButtonProps = isDarkMode
+    ? {
+        variant: 'outline' as const,
+        borderColor: 'blue.300',
+        bg: '#1F2937',
+        color: 'gray.100',
+        _hover: { bg: '#374151' }
+      }
+    : { colorScheme: 'blue' as const }
+
+  useEffect(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem('ch_theme_mode', isDarkMode ? 'dark' : 'light')
+      }
+      if (typeof document !== 'undefined') {
+        document.body.classList.toggle('ch-dark', isDarkMode)
+      }
+    } catch {
+      // noop
+    }
+  }, [isDarkMode])
 
   const controlListByType = useMemo(() => {
     const groups: Record<string, typeof controlIssues> = {}
@@ -4656,6 +4739,101 @@ function App() {
     })
   }, [activeEdges, hiddenPumpNodeIds, equipmentNodeIdsReparacionDeposito])
 
+  const pozoFeedRelations = useMemo(() => {
+    const result: Record<'pozo19' | 'pozoLalo' | 'pozoLuisa', string[]> = {
+      pozo19: [...(waterFeedLinks.pozo19 || [])],
+      pozoLalo: [...(waterFeedLinks.pozoLalo || [])],
+      pozoLuisa: [...(waterFeedLinks.pozoLuisa || [])]
+    }
+    for (const [issueKey, systemLabel] of Object.entries(WATER_FEED_SYSTEM_BY_ISSUE_KEY)) {
+      const selectedValues = waterFeedSelections[issueKey] ?? []
+      for (const selected of selectedValues) {
+        const pozo = mapWaterValueToPozoSystem(selected)
+        if (!pozo) continue
+        if (!result[pozo].includes(systemLabel)) result[pozo].push(systemLabel)
+      }
+    }
+    return result
+  }, [waterFeedSelections, waterFeedLinks])
+
+  useEffect(() => {
+    setStickyPozoFeedRelations((prev) => {
+      const next = {
+      pozo19: Array.from(new Set(pozoFeedRelations.pozo19 || [])),
+      pozoLalo: Array.from(new Set(pozoFeedRelations.pozoLalo || [])),
+      pozoLuisa: Array.from(new Set(pozoFeedRelations.pozoLuisa || []))
+      }
+      if (
+        prev.pozo19.length === next.pozo19.length &&
+        prev.pozoLalo.length === next.pozoLalo.length &&
+        prev.pozoLuisa.length === next.pozoLuisa.length &&
+        prev.pozo19.every((label, idx) => label === next.pozo19[idx]) &&
+        prev.pozoLalo.every((label, idx) => label === next.pozoLalo[idx]) &&
+        prev.pozoLuisa.every((label, idx) => label === next.pozoLuisa[idx])
+      ) return prev
+      try {
+        if (typeof window !== 'undefined') {
+          window.sessionStorage.setItem('ch_pozo_feed_relations', JSON.stringify(next))
+        }
+      } catch {
+        // noop
+      }
+      return next
+    })
+  }, [pozoFeedRelations])
+
+  const pozoFeedNodes = useMemo<Node[]>(() => {
+    if (currentSystem !== 'pozo19' && currentSystem !== 'pozoLalo' && currentSystem !== 'pozoLuisa') return []
+    const labels = stickyPozoFeedRelations[currentSystem] ?? []
+    return labels.map((label, index) => ({
+      id: `${currentSystem}-feed-${label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+      type: 'waterFeed',
+      position: { x: 120, y: 540 + index * 110 },
+      draggable: false,
+      data: { label }
+    }))
+  }, [currentSystem, stickyPozoFeedRelations])
+
+  const pozoFeedEdges = useMemo<Edge[]>(() => {
+    if (currentSystem !== 'pozo19' && currentSystem !== 'pozoLalo' && currentSystem !== 'pozoLuisa') return []
+    const targetPipe = POZO_PIPE_NODE_BY_SYSTEM[currentSystem]
+    return pozoFeedNodes.map((node) => ({
+      id: `${node.id}-to-${targetPipe}`,
+      source: node.id,
+      sourceHandle: 'out-right',
+      target: targetPipe,
+      targetHandle: 'in-bottom',
+      type: 'straight',
+      style: { stroke: '#D69E2E', strokeWidth: 6 }
+    }))
+  }, [currentSystem, pozoFeedNodes])
+
+  useEffect(() => {
+    function mergeFeedNodesForSystem(nodes: Node[], systemId: 'pozo19' | 'pozoLalo' | 'pozoLuisa'): Node[] {
+      const labels = stickyPozoFeedRelations[systemId] ?? []
+      const desiredFeedNodes: Node[] = labels.map((label, index) => ({
+        id: `${systemId}-feed-${label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+        type: 'waterFeed',
+        position: { x: 120, y: 540 + index * 110 },
+        draggable: false,
+        data: { label }
+      }))
+      const feedIds = new Set(desiredFeedNodes.map((n) => n.id))
+      const nonFeedNodes = nodes.filter((n) => n.type !== 'waterFeed')
+      const existingDesiredFeedNodes = nodes.filter((n) => n.type === 'waterFeed' && feedIds.has(n.id))
+      const existingDesiredFeedIds = new Set(existingDesiredFeedNodes.map((n) => n.id))
+      const missingFeedNodes = desiredFeedNodes.filter((n) => !existingDesiredFeedIds.has(n.id))
+      return [...nonFeedNodes, ...existingDesiredFeedNodes, ...missingFeedNodes]
+    }
+
+    setPozo19Nodes((prev) => mergeFeedNodesForSystem(prev, 'pozo19'))
+    setPozoLaloNodes((prev) => mergeFeedNodesForSystem(prev, 'pozoLalo'))
+    setPozoLuisaNodes((prev) => mergeFeedNodesForSystem(prev, 'pozoLuisa'))
+  }, [stickyPozoFeedRelations, setPozo19Nodes, setPozoLaloNodes, setPozoLuisaNodes])
+
+  const visualActiveNodes = useMemo(() => filteredActiveNodes, [filteredActiveNodes])
+  const visualActiveEdges = useMemo(() => [...filteredActiveEdges, ...pozoFeedEdges], [filteredActiveEdges, pozoFeedEdges])
+
   const handleSelectSystem = (systemId: string) => {
     const selected = SYSTEMS.find((sys) => sys.id === systemId)
     if (selected?.group) setCurrentGroup(selected.group)
@@ -4682,17 +4860,61 @@ function App() {
 
   const loadIssues = useCallback(async () => {
     try {
-      const [issuesRes, pumpsMap] = await Promise.all([
+      const [issuesRes, pumpsMap, waterRes, waterLinksRes] = await Promise.all([
         fetch(`${API_BASE_URL}/api/issues`),
-        fetchPumpsBatch()
+        fetchPumpsBatch(),
+        fetch(`${API_BASE_URL}/api/issues?keys=${WATER_FIELD_ISSUE_KEYS.join(',')}`),
+        fetch(`${API_BASE_URL}/api/water-feeds?t=${Date.now()}`, { cache: 'no-store' })
       ])
       const data = await issuesRes.json()
+      const waterData = await waterRes.json().catch(() => ({ issues: [] }))
+      const waterLinksData = waterLinksRes.ok
+        ? await waterLinksRes.json().catch(() => null)
+        : null
+      const hasValidRelations =
+        waterLinksData &&
+        typeof waterLinksData === 'object' &&
+        waterLinksData.relations &&
+        Array.isArray(waterLinksData.relations.pozo19) &&
+        Array.isArray(waterLinksData.relations.pozoLalo) &&
+        Array.isArray(waterLinksData.relations.pozoLuisa)
+      if (hasValidRelations) {
+        setWaterFeedLinks(() => {
+          const nextPozo19 = Array.isArray(waterLinksData.relations.pozo19) ? waterLinksData.relations.pozo19 : []
+          const nextPozoLalo = Array.isArray(waterLinksData.relations.pozoLalo) ? waterLinksData.relations.pozoLalo : []
+          const nextPozoLuisa = Array.isArray(waterLinksData.relations.pozoLuisa) ? waterLinksData.relations.pozoLuisa : []
+          return {
+            pozo19: Array.from(new Set(nextPozo19)),
+            pozoLalo: Array.from(new Set(nextPozoLalo)),
+            pozoLuisa: Array.from(new Set(nextPozoLuisa))
+          }
+        })
+      }
+      if (Array.isArray(waterData.issues)) {
+        const nextSelections: Record<string, string[]> = {}
+        for (const issue of waterData.issues) {
+          if (!issue?.key || !WATER_FIELD_ISSUE_KEYS.includes(issue.key)) continue
+          nextSelections[issue.key] = extractWaterFieldValues(issue?.customfield_11815)
+        }
+        setWaterFeedSelections(nextSelections)
+      }
       const map = new Map<string, { status?: string; summary?: string; waterField?: any }>()
       for (const issue of data.issues || []) {
         if (issue?.key) {
           map.set(issue.key, {
             status: issue?.status?.name,
             summary: issue?.summary,
+            waterField: issue?.customfield_11815
+          })
+        }
+      }
+      for (const issue of waterData.issues || []) {
+        if (issue?.key && WATER_FIELD_ISSUE_KEYS.includes(issue.key)) {
+          const prev = map.get(issue.key) || {}
+          map.set(issue.key, {
+            ...prev,
+            status: issue?.status?.name ?? prev.status,
+            summary: issue?.summary ?? prev.summary,
             waterField: issue?.customfield_11815
           })
         }
@@ -4768,7 +4990,7 @@ function App() {
     }
   }, [fetchPumpsBatch, setGrutaNodes, setHidroNodes, setGruta2Nodes, setGruta3Nodes, setGruta4Nodes, setFangoEsteNodes, setFangoOesteNodes, setAljibeFangoNodes, setAscensorNodes, setCacheutinaNodes, setChorroCacheutinaNodes, setCascadaNodes, setAguaFriaNodes, setParqueArriba1Nodes, setParqueBtv2Nodes, setParqueJfv3Nodes, setParqueDuchas4Nodes, setParqueAguaTibiaNodes, setParqueInteractivoNodes, setParqueBurbujaNodes, setParqueBurbujaBanosNodes, setParqueBurbujaExtNodes, setParqueMedialunaExtNodes, setParqueCascadaNodes, setParqueSala1Nodes, setParqueSala2Nodes, setParqueSala3Nodes, setParqueSala4Nodes, setParqueTobogan3Nodes, setParqueCascadaOlasNodes, setParqueChorrosOlasNodes, setParqueAguaFriaParqueNodes, setPozo19Nodes, setPozoLaloNodes, setPozoLuisaNodes])
 
-  const extractWaterFieldValues = (value: any) => {
+  function extractWaterFieldValues(value: any) {
     if (!value) return []
     if (Array.isArray(value)) {
       return value
@@ -4783,9 +5005,17 @@ function App() {
     return [String(value)]
   }
 
-  const formatWaterFieldValue = (value: any) => {
+  function formatWaterFieldValue(value: any) {
     const values = extractWaterFieldValues(value)
     return values.join(', ')
+  }
+
+  function mapWaterValueToPozoSystem(value: string): 'pozo19' | 'pozoLalo' | 'pozoLuisa' | null {
+    const v = normalizeForSearch(value)
+    if (v.includes('19')) return 'pozo19'
+    if (v.includes('lalo')) return 'pozoLalo'
+    if (v.includes('luisa')) return 'pozoLuisa'
+    return null
   }
 
   const isPuestoNode = (node: Node | null) => {
@@ -5274,7 +5504,10 @@ function App() {
     try {
       setWaterFieldSaving(true)
       const trimmedValue = waterFieldValue.trim()
-      const selectedValues = waterFieldValues.map((value) => value.trim()).filter(Boolean)
+      // Si hay opciones de Jira, preservar exactamente el value (incluyendo espacios).
+      const selectedValues = waterFieldOptions.length > 0
+        ? waterFieldValues.filter((value) => String(value).length > 0)
+        : waterFieldValues.map((value) => value.trim()).filter(Boolean)
       const fieldValue =
         waterFieldIsMulti
           ? selectedValues.length > 0
@@ -5285,6 +5518,7 @@ function App() {
             : waterFieldOptions.length > 0
               ? { value: trimmedValue }
               : trimmedValue
+      const nextSelectedValues = waterFieldIsMulti ? selectedValues : (trimmedValue ? [trimmedValue] : [])
       const update = await fetch(`${API_BASE_URL}/api/issues/${key}/fields`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -5294,8 +5528,22 @@ function App() {
         const error = await update.json().catch(() => ({}))
         throw new Error(error?.error || 'Error al actualizar')
       }
+      // Actualización optimista para que el vínculo en Pozos responda al instante.
+      setWaterFeedSelections((prev) => ({ ...prev, [key]: nextSelectedValues }))
+      setTransitionNode((prev) => {
+        if (!prev) return prev
+        return {
+          ...prev,
+          data: {
+            ...(prev.data || {}),
+            customfield_11815: waterFieldIsMulti
+              ? nextSelectedValues.map((value) => ({ value }))
+              : (nextSelectedValues[0] ?? null)
+          }
+        }
+      })
       toast({ title: `${WATER_FIELD_LABEL} actualizado`, status: 'success', duration: 1500 })
-      await loadIssues()
+      void loadIssues()
     } catch (error: any) {
       toast({ title: `No se pudo actualizar ${WATER_FIELD_LABEL}`, description: String(error?.message || error), status: 'error', duration: 2000 })
     } finally {
@@ -5439,7 +5687,7 @@ function App() {
 
   if (isMobile) {
   return (
-      <Box w="100vw" h="100dvh" bg="gray.50">
+      <Box className={isDarkMode ? 'ch-dark' : ''} w="100vw" h="100dvh" bg={appBg}>
         <Box ref={diagramAreaRef} w="100%" h="100%" minH="100dvh" position="relative">
           <div className="system-menu">
             <button
@@ -5546,18 +5794,39 @@ function App() {
               top: 'max(20px, calc(env(safe-area-inset-top, 0px) + 12px))',
               right: 'max(24px, calc(env(safe-area-inset-right, 0px) + 16px))',
               zIndex: 10,
-              background: displayLabel === 'Control' ? '#FDE047' : '#FEEBC8',
-              border: displayLabel === 'Control' ? '1px solid #FACC15' : '1px solid #F6AD55',
-              borderRadius: 999,
-              padding: '6px 12px',
-              fontSize: 14,
-              fontWeight: 600,
-              color: displayLabel === 'Control' ? '#422006' : '#7B341E',
-              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.12)',
-              whiteSpace: 'nowrap'
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8
             }}
           >
-            {displayLabel}
+            <Button
+              size="xs"
+              minW="32px"
+              h="32px"
+              px={0}
+              borderRadius="10px"
+              variant="outline"
+              colorScheme={isDarkMode ? 'yellow' : 'gray'}
+              onClick={() => setIsDarkMode((prev) => !prev)}
+              aria-label={isDarkMode ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+            >
+              ☀️🌙
+            </Button>
+            <div
+              style={{
+                background: displayLabel === 'Control' ? '#FDE047' : '#FEEBC8',
+                border: displayLabel === 'Control' ? '1px solid #FACC15' : '1px solid #F6AD55',
+                borderRadius: 999,
+                padding: '6px 12px',
+                fontSize: 14,
+                fontWeight: 600,
+                color: displayLabel === 'Control' ? '#422006' : '#7B341E',
+                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.12)',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              {displayLabel}
+            </div>
           </div>
           {currentGroup === 'servicios' ? (
             <>
@@ -5569,7 +5838,7 @@ function App() {
               right={0}
               bottom={0}
               zIndex={4}
-              bg="gray.50"
+              bg={listOverlayBg}
               display="flex"
               flexDirection="column"
               pt="max(76px, calc(env(safe-area-inset-top, 0px) + 60px))"
@@ -5601,8 +5870,10 @@ function App() {
                     maxW={{ base: '100%', sm: '220px' }}
                     flex={1}
                     minW="140px"
-                    bg="white"
-                    borderColor="gray.300"
+                    bg={listInputBg}
+                    borderColor={listInputBorder}
+                    color={isDarkMode ? 'gray.100' : 'gray.800'}
+                    _placeholder={{ color: isDarkMode ? 'gray.400' : 'gray.500' }}
                   />
                 </HStack>
               </Box>
@@ -5625,7 +5896,7 @@ function App() {
                     .filter(([groupLabel]) => (serviciosGroupFilter === 'gruta' && groupLabel === 'Gruta') || (serviciosGroupFilter === 'parque' && groupLabel === 'Parque'))
                     .map(([groupLabel, bySystem]) => (
                     <Box key={groupLabel}>
-                      <Heading size="sm" mb={3} color="gray.800">
+                      <Heading size="sm" mb={3} color={listHeadingColor}>
                         {groupLabel}
                       </Heading>
                       {Object.entries(bySystem)
@@ -5640,7 +5911,7 @@ function App() {
                         .filter(([, filtered]) => filtered.length > 0)
                         .map(([systemLabel, services]) => (
                         <Box key={systemLabel} mb={4}>
-                          <Text fontSize="sm" fontWeight="bold" color="gray.800" mb={2}>
+                          <Text fontSize="sm" fontWeight="bold" color={listHeadingColor} mb={2}>
                             {systemLabel}
                           </Text>
                           <Stack spacing={1}>
@@ -5649,16 +5920,16 @@ function App() {
                                 key={s.id}
                                 py={2}
                                 px={3}
-                                bg="gray.800"
+                                bg={listCardBg}
                                 borderRadius="md"
                                 borderWidth="1px"
-                                borderColor="gray.600"
+                                borderColor={listCardBorder}
                                 cursor={s.issueKey ? 'pointer' : undefined}
                                 onClick={s.issueKey ? () => openServiciosModal(s) : undefined}
-                                _hover={s.issueKey ? { bg: 'gray.700' } : undefined}
+                                _hover={s.issueKey ? { bg: listCardHoverBg } : undefined}
                               >
                                 <HStack justify="space-between" flexWrap="wrap" gap={2}>
-                                  <Text fontSize="sm" fontWeight="medium" color="gray.100">
+                                  <Text fontSize="sm" fontWeight="medium" color={listCardText}>
                                     {(s.issueKey && serviceIssuesData[s.issueKey]?.summary) || s.label || s.id}
                                   </Text>
                                   {s.issueKey && serviceIssuesData[s.issueKey]?.status != null ? (
@@ -5668,7 +5939,7 @@ function App() {
                                   ) : null}
                                 </HStack>
                                 {s.issueKey && (
-                                  <Text fontSize="xs" color="gray.400" mt={1}>
+                                  <Text fontSize="xs" color={listCardMeta} mt={1}>
                                     {s.issueKey}
                                   </Text>
                                 )}
@@ -5730,7 +6001,7 @@ function App() {
                   </Stack>
                 </ModalBody>
                 <ModalFooter>
-                  <Button size="sm" variant="ghost" onClick={closeServiciosModal}>
+                  <Button size="sm" variant="ghost" color={modalGhostColor} _hover={{ bg: modalGhostHoverBg }} onClick={closeServiciosModal}>
                     Cancelar
                   </Button>
                 </ModalFooter>
@@ -5752,10 +6023,10 @@ function App() {
                   />
                 </ModalBody>
                 <ModalFooter>
-                  <Button size="sm" variant="ghost" mr={2} onClick={closeServiciosNameModal}>
+                  <Button size="sm" variant="ghost" color={modalGhostColor} _hover={{ bg: modalGhostHoverBg }} mr={2} onClick={closeServiciosNameModal}>
                     Cancelar
                   </Button>
-                  <Button size="sm" colorScheme="blue" onClick={handleServiciosTransitionWithName} isDisabled={serviciosTransitionSaving}>
+                  <Button size="sm" {...modalActionButtonProps} onClick={handleServiciosTransitionWithName} isDisabled={serviciosTransitionSaving}>
                     {serviciosTransitionSaving ? <Spinner size="xs" /> : 'Confirmar cambio'}
                   </Button>
                 </ModalFooter>
@@ -5763,7 +6034,7 @@ function App() {
             </Modal>
             </>
           ) : currentGroup === 'control' ? (
-            <Box pt={1} px={3} pb={4} overflowY="auto" h="100%" position="absolute" inset={0} top={32}>
+            <Box pt={1} px={3} pb={4} overflowY="auto" h="100%" position="absolute" inset={0} top={32} bg={listOverlayBg}>
               {controlLoading ? (
                 <Flex justify="center" align="center" h="50%">
                   <Spinner size="lg" color="gray.300" />
@@ -5777,26 +6048,26 @@ function App() {
                     if (items.length === 0) return null
                     return (
                       <Box key={type}>
-                        <Heading size="sm" mb={2} color="gray.800">{type}</Heading>
+                        <Heading size="sm" mb={2} color={listHeadingColor}>{type}</Heading>
                         <Stack spacing={2}>
                           {items.map((item) => (
                             <Box
                               key={item.key}
                               p={3}
-                              bg="gray.800"
+                              bg={listCardBg}
                               borderRadius="md"
                               borderWidth="1px"
-                              borderColor="gray.600"
+                              borderColor={listCardBorder}
                               cursor="pointer"
                               onClick={() => openControlEpicModal(item)}
-                              _hover={{ bg: 'gray.700' }}
+                              _hover={{ bg: listCardHoverBg }}
                             >
                               <HStack justify="space-between" flexWrap="wrap" gap={2}>
                                 <Badge colorScheme="blue">{item.key}</Badge>
                                 {item.status ? transitionBadge(item.status) : <Badge colorScheme="gray">Sin estado</Badge>}
                               </HStack>
-                              <Text fontSize="sm" fontWeight="medium" mt={1} color="gray.100">{item.summary || item.key}</Text>
-                              <Text fontSize="xs" color="gray.400">
+                              <Text fontSize="sm" fontWeight="medium" mt={1} color={listCardText}>{item.summary || item.key}</Text>
+                              <Text fontSize="xs" color={listCardMeta}>
                                 Epic: {item.epicSummary ? `${item.epicSummary} (${item.epicKey})` : item.epicKey || 'Sin Epic'}
                               </Text>
                             </Box>
@@ -5873,10 +6144,10 @@ function App() {
                     </Stack>
                   </ModalBody>
                   <ModalFooter>
-                    <Button size="sm" variant="ghost" onClick={closeControlEpicModal}>
+                    <Button size="sm" variant="ghost" color={modalGhostColor} _hover={{ bg: modalGhostHoverBg }} onClick={closeControlEpicModal}>
                       Cancelar
                     </Button>
-                    <Button size="sm" colorScheme="blue" onClick={handleControlEpicSave} isDisabled={controlEpicSaving || controlEpicLoading}>
+                    <Button size="sm" {...modalActionButtonProps} onClick={handleControlEpicSave} isDisabled={controlEpicSaving || controlEpicLoading}>
                       {controlEpicSaving ? <Spinner size="xs" /> : 'Guardar'}
                     </Button>
                   </ModalFooter>
@@ -5901,10 +6172,10 @@ function App() {
                   </ModalBody>
                   <ModalFooter flexShrink={0} flexWrap="wrap" gap={2}>
                     <Stack direction={{ base: 'column', sm: 'row' }} w="100%" spacing={2}>
-                      <Button type="button" size="sm" variant="ghost" onClick={() => closeControlBreakdownModal()} minH="44px" flex={1}>
+                      <Button type="button" size="sm" variant="ghost" color={modalGhostColor} _hover={{ bg: modalGhostHoverBg }} onClick={() => closeControlBreakdownModal()} minH="44px" flex={1}>
                         Cancelar
                       </Button>
-                      <Button type="button" size="sm" colorScheme="blue" onClick={handleControlTransitionWithExplanation} isDisabled={controlTransitionSaving || !controlBreakdownExplanation.trim()} minH="44px" flex={1}>
+                      <Button type="button" size="sm" {...modalActionButtonProps} onClick={handleControlTransitionWithExplanation} isDisabled={controlTransitionSaving || !controlBreakdownExplanation.trim()} minH="44px" flex={1}>
                         {controlTransitionSaving ? <Spinner size="xs" /> : 'Confirmar cambio de estado'}
                       </Button>
                     </Stack>
@@ -5973,36 +6244,36 @@ function App() {
                           Nuevo valor
                         </FormLabel>
                         {waterFieldOptions.length > 0 ? (
-                          waterFieldIsMulti ? (
-                            <Select
-                              size="sm"
-                              value={waterFieldValues}
-                              onChange={(event) => {
-                                const selected = Array.from(event.target.selectedOptions).map((option) => option.value)
-                                setWaterFieldValues(selected)
-                              }}
-                              multiple
-                            >
-                              {waterFieldOptions.map((option) => (
-                                <option key={option.id ?? option.value} value={option.value}>
+                          <HStack spacing={2} flexWrap="wrap">
+                            {waterFieldOptions.map((option) => {
+                              const selected = waterFieldIsMulti
+                                ? waterFieldValues.includes(option.value)
+                                : waterFieldValue === option.value
+                              return (
+                                <Button
+                                  key={option.id ?? option.value}
+                                  size="sm"
+                                  variant={selected ? 'solid' : 'outline'}
+                                  colorScheme={selected ? 'blue' : 'gray'}
+                                  color={selected ? 'white' : (isDarkMode ? 'gray.100' : undefined)}
+                                  _hover={!selected && isDarkMode ? { bg: 'gray.700' } : undefined}
+                                  onClick={() => {
+                                    if (waterFieldIsMulti) {
+                                      setWaterFieldValues((prev) =>
+                                        prev.includes(option.value)
+                                          ? prev.filter((value) => value !== option.value)
+                                          : [...prev, option.value]
+                                      )
+                                    } else {
+                                      setWaterFieldValue(option.value)
+                                    }
+                                  }}
+                                >
                                   {option.value}
-                                </option>
-                              ))}
-                            </Select>
-                          ) : (
-                            <Select
-                              size="sm"
-                              value={waterFieldValue}
-                              onChange={(event) => setWaterFieldValue(event.target.value)}
-                              placeholder="Seleccionar"
-                            >
-                              {waterFieldOptions.map((option) => (
-                                <option key={option.id ?? option.value} value={option.value}>
-                                  {option.value}
-                                </option>
-                              ))}
-                            </Select>
-                          )
+                                </Button>
+                              )
+                            })}
+                          </HStack>
                         ) : waterFieldIsMulti ? (
                           <Input
                             size="sm"
@@ -6026,7 +6297,7 @@ function App() {
                         )}
                       </FormControl>
                     )}
-                    <Button size="sm" onClick={handleWaterFieldSave} isDisabled={waterFieldSaving || waterFieldLoading}>
+                    <Button size="sm" {...modalActionButtonProps} onClick={handleWaterFieldSave} isDisabled={waterFieldSaving || waterFieldLoading}>
                       Guardar
                     </Button>
                   </Stack>
@@ -6057,26 +6328,26 @@ function App() {
                                 borderWidth="1px"
                                 borderRadius="md"
                                 p={2}
-                                bg={isActive ? 'green.50' : 'orange.50'}
-                                borderColor={isActive ? 'green.300' : 'orange.300'}
-                                _dark={{ bg: isActive ? 'green.900' : 'orange.900', borderColor: isActive ? 'green.600' : 'orange.600' }}
+                                bg={isActive ? compatibleActiveBg : compatibleInactiveBg}
+                                borderColor={isActive ? compatibleActiveBorder : compatibleInactiveBorder}
+                                color="gray.800"
                               >
                                 {isActive && (
-                                  <Text fontSize="xs" fontWeight="bold" mb={1}>En uso</Text>
+                                  <Text fontSize="xs" fontWeight="bold" color={compatibleTitleColor} mb={1}>En uso</Text>
                                 )}
                                 {option.inUseElsewhere && !isActive && (
-                                  <Text fontSize="xs" fontWeight="semibold" color="orange.600" _dark={{ color: 'orange.300' }} mb={1}>
+                                  <Text fontSize="xs" fontWeight="semibold" color={isDarkMode ? '#FDBA74' : 'orange.600'} mb={1}>
                                     En uso en otro puesto
                                   </Text>
                                 )}
                                 <HStack justify="space-between">
-                                  <Text fontSize="sm" fontWeight={isActive ? 'bold' : undefined}>{option.summary || option.key}</Text>
+                                  <Text fontSize="sm" fontWeight={isActive ? 'bold' : undefined} color={compatibleTitleColor}>{option.summary || option.key}</Text>
                                   {option.status ? transitionBadge(option.status) : <Badge colorScheme="gray">Sin estado</Badge>}
                                 </HStack>
-                                <Text fontSize="xs" color="gray.600">
+                                <Text fontSize="xs" color={compatibleMetaColor}>
                                   {option.issueType || 'Tipo'} • {option.key}
                                 </Text>
-                                <Text fontSize="xs" color="gray.600">
+                                <Text fontSize="xs" color={compatibleMetaColor}>
                                   Epic: {option.epicSummary ? `${option.epicSummary} (${option.epicKey})` : option.epicKey || 'Sin Epic'}
                                 </Text>
                               </Box>
@@ -6100,7 +6371,7 @@ function App() {
                             ))}
                           </Select>
                         </FormControl>
-                        <Button size="sm" onClick={handlePumpSave} isDisabled={pumpSaving || pumpLoading || !pumpSelectedKey}>
+                        <Button size="sm" {...modalActionButtonProps} onClick={handlePumpSave} isDisabled={pumpSaving || pumpLoading || !pumpSelectedKey}>
                           Confirmar
                         </Button>
                       </>
@@ -6109,7 +6380,7 @@ function App() {
                 )}
               </ModalBody>
               <ModalFooter>
-                <Button size="sm" variant="ghost" onClick={closeTransitionModal}>
+                <Button size="sm" variant="ghost" color={modalGhostColor} _hover={{ bg: modalGhostHoverBg }} onClick={closeTransitionModal}>
                   Cancelar
                 </Button>
               </ModalFooter>
@@ -6134,10 +6405,10 @@ function App() {
               </ModalBody>
               <ModalFooter flexShrink={0} flexWrap="wrap" gap={2}>
                 <Stack direction={{ base: 'column', sm: 'row' }} w="100%" spacing={2}>
-                  <Button type="button" size="sm" variant="ghost" onClick={() => closeControlBreakdownModal()} minH="44px" flex={1}>
+                  <Button type="button" size="sm" variant="ghost" color={modalGhostColor} _hover={{ bg: modalGhostHoverBg }} onClick={() => closeControlBreakdownModal()} minH="44px" flex={1}>
                     Cancelar
                   </Button>
-                  <Button type="button" size="sm" colorScheme="blue" onClick={handleControlTransitionWithExplanation} isDisabled={controlTransitionSaving || !controlBreakdownExplanation.trim()} minH="44px" flex={1}>
+                  <Button type="button" size="sm" {...modalActionButtonProps} onClick={handleControlTransitionWithExplanation} isDisabled={controlTransitionSaving || !controlBreakdownExplanation.trim()} minH="44px" flex={1}>
                     {controlTransitionSaving ? <Spinner size="xs" /> : 'Confirmar cambio de estado'}
                   </Button>
                 </Stack>
@@ -6160,10 +6431,10 @@ function App() {
                 />
               </ModalBody>
               <ModalFooter>
-                <Button size="sm" variant="ghost" mr={2} onClick={closeServiciosNameModal}>
+                <Button size="sm" variant="ghost" color={modalGhostColor} _hover={{ bg: modalGhostHoverBg }} mr={2} onClick={closeServiciosNameModal}>
                   Cancelar
                 </Button>
-                <Button size="sm" colorScheme="blue" onClick={handleServiciosTransitionWithName} isDisabled={serviciosTransitionSaving}>
+                <Button size="sm" {...modalActionButtonProps} onClick={handleServiciosTransitionWithName} isDisabled={serviciosTransitionSaving}>
                   {serviciosTransitionSaving ? <Spinner size="xs" /> : 'Confirmar cambio'}
                 </Button>
               </ModalFooter>
@@ -6181,8 +6452,8 @@ function App() {
             <Box flex={1} minH={0} position="relative">
               <ReactFlow
                 nodeTypes={nodeTypes}
-                nodes={filteredActiveNodes}
-                edges={filteredActiveEdges}
+                nodes={visualActiveNodes}
+                edges={visualActiveEdges}
                 onNodesChange={activeOnNodesChange}
                 onEdgesChange={activeOnEdgesChange}
                 onConnect={onConnect}
@@ -6196,7 +6467,7 @@ function App() {
                 onNodeClick={onNodeClick}
                 onEdgeClick={onEdgeClick}
                 noPanClassName="nopan"
-                style={{ width: '100%', height: '100%', position: 'absolute', inset: 0 }}
+                style={{ width: '100%', height: '100%', position: 'absolute', inset: 0, background: isDarkMode ? '#0F172A' : '#FFFFFF' }}
                 defaultViewport={{ x: 0, y: 0, zoom: 0.88 }}
                 nodesDraggable={false}
                 nodesConnectable={false}
@@ -6209,11 +6480,11 @@ function App() {
                 translateExtent={VIEW_BOUNDS}
                 nodeExtent={VIEW_BOUNDS}
               >
-                <Background gap={16} color="#EDF2F7" />
+                <Background gap={16} color={flowGridColor} />
               </ReactFlow>
             </Box>
             {currentSystem === 'gruta1' && (
-              <Box flexShrink={0} p={2} px={3} bg="white" borderTopWidth="1px" borderColor="gray.200" fontSize="11px" lineHeight="1.4" color="gray.600">
+              <Box flexShrink={0} p={2} px={3} bg={panelBg} borderTopWidth="1px" borderColor={panelBorder} fontSize="11px" lineHeight="1.4" color={textMuted}>
                 <Text as="span">Cambiar de estado la bomba, el componente eléctrico o la cañería de succión de este sistema afecta al Sistema Hidro, para volver a funcionamiento el mismo debe volverse a funcionamiento el Sistema Hidro.</Text>
               </Box>
             )}
@@ -6226,7 +6497,7 @@ function App() {
   }
 
   return (
-    <Box minH="100dvh" bg="gray.50" py={{ base: 2, md: 6 }}>
+    <Box className={isDarkMode ? 'ch-dark' : ''} minH="100dvh" bg={appBg} py={{ base: 2, md: 6 }}>
       <Container maxW={{ base: 'full', lg: '7xl' }} px={{ base: 2, md: 4 }}>
         <Modal isOpen={transitionOpen} onClose={closeTransitionModal} isCentered size="md">
           <ModalOverlay bg="transparent" />
@@ -6287,36 +6558,36 @@ function App() {
                         Nuevo valor
                       </FormLabel>
                       {waterFieldOptions.length > 0 ? (
-                        waterFieldIsMulti ? (
-                          <Select
-                            size="sm"
-                            value={waterFieldValues}
-                            onChange={(event) => {
-                              const selected = Array.from(event.target.selectedOptions).map((option) => option.value)
-                              setWaterFieldValues(selected)
-                            }}
-                            multiple
-                          >
-                            {waterFieldOptions.map((option) => (
-                              <option key={option.id ?? option.value} value={option.value}>
+                        <HStack spacing={2} flexWrap="wrap">
+                          {waterFieldOptions.map((option) => {
+                            const selected = waterFieldIsMulti
+                              ? waterFieldValues.includes(option.value)
+                              : waterFieldValue === option.value
+                            return (
+                              <Button
+                                key={option.id ?? option.value}
+                                size="sm"
+                                variant={selected ? 'solid' : 'outline'}
+                                colorScheme={selected ? 'blue' : 'gray'}
+                                color={selected ? 'white' : (isDarkMode ? 'gray.100' : undefined)}
+                                _hover={!selected && isDarkMode ? { bg: 'gray.700' } : undefined}
+                                onClick={() => {
+                                  if (waterFieldIsMulti) {
+                                    setWaterFieldValues((prev) =>
+                                      prev.includes(option.value)
+                                        ? prev.filter((value) => value !== option.value)
+                                        : [...prev, option.value]
+                                    )
+                                  } else {
+                                    setWaterFieldValue(option.value)
+                                  }
+                                }}
+                              >
                                 {option.value}
-                              </option>
-                            ))}
-                          </Select>
-                        ) : (
-                          <Select
-                            size="sm"
-                            value={waterFieldValue}
-                            onChange={(event) => setWaterFieldValue(event.target.value)}
-                            placeholder="Seleccionar"
-                          >
-                            {waterFieldOptions.map((option) => (
-                              <option key={option.id ?? option.value} value={option.value}>
-                                {option.value}
-                              </option>
-                            ))}
-                          </Select>
-                        )
+                              </Button>
+                            )
+                          })}
+                        </HStack>
                       ) : (
                         waterFieldIsMulti ? (
                           <Input
@@ -6342,7 +6613,7 @@ function App() {
                       )}
                     </FormControl>
                   )}
-                  <Button size="sm" onClick={handleWaterFieldSave} isDisabled={waterFieldSaving || waterFieldLoading}>
+                  <Button size="sm" {...modalActionButtonProps} onClick={handleWaterFieldSave} isDisabled={waterFieldSaving || waterFieldLoading}>
                     Guardar
                   </Button>
                 </Stack>
@@ -6373,26 +6644,26 @@ function App() {
                               borderWidth="1px"
                               borderRadius="md"
                               p={2}
-                              bg={isActive ? 'green.50' : 'orange.50'}
-                              borderColor={isActive ? 'green.300' : 'orange.300'}
-                              _dark={{ bg: isActive ? 'green.900' : 'orange.900', borderColor: isActive ? 'green.600' : 'orange.600' }}
+                                bg={isActive ? compatibleActiveBg : compatibleInactiveBg}
+                                borderColor={isActive ? compatibleActiveBorder : compatibleInactiveBorder}
+                                color="gray.800"
                             >
                               {isActive && (
-                                <Text fontSize="xs" fontWeight="bold" mb={1}>En uso</Text>
+                                <Text fontSize="xs" fontWeight="bold" color={compatibleTitleColor} mb={1}>En uso</Text>
                               )}
                               {option.inUseElsewhere && !isActive && (
-                                <Text fontSize="xs" fontWeight="semibold" color="orange.600" _dark={{ color: 'orange.300' }} mb={1}>
+                                <Text fontSize="xs" fontWeight="semibold" color={isDarkMode ? '#FDBA74' : 'orange.600'} mb={1}>
                                   En uso en otro puesto
                                 </Text>
                               )}
                               <HStack justify="space-between">
-                                <Text fontSize="sm" fontWeight={isActive ? 'bold' : undefined}>{option.summary || option.key}</Text>
+                                <Text fontSize="sm" fontWeight={isActive ? 'bold' : undefined} color={compatibleTitleColor}>{option.summary || option.key}</Text>
                                 {option.status ? transitionBadge(option.status) : <Badge colorScheme="gray">Sin estado</Badge>}
                               </HStack>
-                              <Text fontSize="xs" color="gray.600">
+                              <Text fontSize="xs" color={compatibleMetaColor}>
                                 {option.issueType || 'Tipo'} • {option.key}
                               </Text>
-                              <Text fontSize="xs" color="gray.600">
+                              <Text fontSize="xs" color={compatibleMetaColor}>
                                 Epic: {option.epicSummary ? `${option.epicSummary} (${option.epicKey})` : option.epicKey || 'Sin Epic'}
                               </Text>
                             </Box>
@@ -6416,7 +6687,7 @@ function App() {
                           ))}
                         </Select>
                       </FormControl>
-                      <Button size="sm" onClick={handlePumpSave} isDisabled={pumpSaving || pumpLoading || !pumpSelectedKey}>
+                      <Button size="sm" {...modalActionButtonProps} onClick={handlePumpSave} isDisabled={pumpSaving || pumpLoading || !pumpSelectedKey}>
                         Confirmar
                       </Button>
                     </>
@@ -6425,7 +6696,7 @@ function App() {
               )}
             </ModalBody>
             <ModalFooter>
-              <Button size="sm" variant="ghost" onClick={closeTransitionModal}>
+              <Button size="sm" variant="ghost" color={modalGhostColor} _hover={{ bg: modalGhostHoverBg }} onClick={closeTransitionModal}>
                 Cancelar
               </Button>
             </ModalFooter>
@@ -6450,10 +6721,10 @@ function App() {
             </ModalBody>
             <ModalFooter flexShrink={0} flexWrap="wrap" gap={2}>
               <Stack direction={{ base: 'column', sm: 'row' }} w="100%" spacing={2}>
-                <Button type="button" size="sm" variant="ghost" onClick={() => closeControlBreakdownModal()} minH="44px" flex={1}>
+                <Button type="button" size="sm" variant="ghost" color={modalGhostColor} _hover={{ bg: modalGhostHoverBg }} onClick={() => closeControlBreakdownModal()} minH="44px" flex={1}>
                   Cancelar
                 </Button>
-                <Button type="button" size="sm" colorScheme="blue" onClick={handleControlTransitionWithExplanation} isDisabled={controlTransitionSaving || !controlBreakdownExplanation.trim()} minH="44px" flex={1}>
+                <Button type="button" size="sm" {...modalActionButtonProps} onClick={handleControlTransitionWithExplanation} isDisabled={controlTransitionSaving || !controlBreakdownExplanation.trim()} minH="44px" flex={1}>
                   {controlTransitionSaving ? <Spinner size="xs" /> : 'Confirmar cambio de estado'}
                 </Button>
               </Stack>
@@ -6476,10 +6747,10 @@ function App() {
               />
             </ModalBody>
             <ModalFooter>
-              <Button size="sm" variant="ghost" mr={2} onClick={closeServiciosNameModal}>
+              <Button size="sm" variant="ghost" color={modalGhostColor} _hover={{ bg: modalGhostHoverBg }} mr={2} onClick={closeServiciosNameModal}>
                 Cancelar
               </Button>
-              <Button size="sm" colorScheme="blue" onClick={handleServiciosTransitionWithName} isDisabled={serviciosTransitionSaving}>
+                <Button size="sm" {...modalActionButtonProps} onClick={handleServiciosTransitionWithName} isDisabled={serviciosTransitionSaving}>
                 {serviciosTransitionSaving ? <Spinner size="xs" /> : 'Confirmar cambio'}
               </Button>
             </ModalFooter>
@@ -6487,7 +6758,7 @@ function App() {
         </Modal>
         <Box display="none">
           <Heading size={{ base: "md", md: "lg" }} mb={2}>Control hidráulico</Heading>
-          <Text color="gray.600" mb={4} fontSize={{ base: "sm", md: "md" }}>Vista preliminar • {displayLabel}</Text>
+          <Text color={textMuted} mb={4} fontSize={{ base: "sm", md: "md" }}>Vista preliminar • {displayLabel}</Text>
         </Box>
         
         {/* Layout desktop */}
@@ -6495,23 +6766,24 @@ function App() {
           {currentGroup !== 'control' && currentGroup !== 'servicios' && (
           <Box 
             w={{ lg: '220px' }} 
-            bg="white" 
+            bg={panelBg} 
             borderWidth="1px" 
+            borderColor={panelBorder}
             borderRadius="lg" 
             p={{ base: 3, md: 4 }}
             order={{ lg: 1 }}
             display="none"
           >
             <Heading size="sm" mb={2}>Sistemas</Heading>
-            <Text fontSize="sm" color="gray.600">Próximamente</Text>
+            <Text fontSize="sm" color={textMuted}>Próximamente</Text>
             <Divider my={4} />
-            <Text fontSize="xs" color="gray.600">Consejo: hacé zoom con la rueda del mouse y arrastrá el lienzo.</Text>
+            <Text fontSize="xs" color={textMuted}>Consejo: hacé zoom con la rueda del mouse y arrastrá el lienzo.</Text>
             <Divider my={2} />
-            <Text fontSize="xs" color="gray.600">💡 Las cañerías son pulsables para ver información técnica.</Text>
+            <Text fontSize="xs" color={textMuted}>💡 Las cañerías son pulsables para ver información técnica.</Text>
             <Divider my={2} />
-            <Text fontSize="xs" color="gray.600">👆 Pasá el cursor sobre las cañerías de servicios para ver su nombre.</Text>
+            <Text fontSize="xs" color={textMuted}>👆 Pasá el cursor sobre las cañerías de servicios para ver su nombre.</Text>
             <Divider my={2} />
-            <Text fontSize="xs" color="gray.600">🔒 Diagrama fijo - elementos no movibles.</Text>
+            <Text fontSize="xs" color={textMuted}>🔒 Diagrama fijo - elementos no movibles.</Text>
           </Box>
           )}
           
@@ -6519,8 +6791,9 @@ function App() {
             flex="1" 
             w="full"
             minW={{ base: '100%', lg: '720px' }} 
-            bg="white" 
+            bg={panelBg} 
             borderWidth="1px" 
+            borderColor={panelBorder}
             borderRadius="lg" 
             h={{ base: "75vh", md: "80vh", lg: "90vh" }}
             minH={{ base: "75vh", md: "80vh", lg: "90vh" }}
@@ -6630,18 +6903,39 @@ function App() {
                 top: 'max(20px, calc(env(safe-area-inset-top, 0px) + 12px))',
                 right: 'max(24px, calc(env(safe-area-inset-right, 0px) + 16px))',
                 zIndex: 10,
-                background: displayLabel === 'Control' ? '#FDE047' : '#FEEBC8',
-                border: displayLabel === 'Control' ? '1px solid #FACC15' : '1px solid #F6AD55',
-                borderRadius: 999,
-                padding: '6px 12px',
-                fontSize: 14,
-                fontWeight: 600,
-                color: displayLabel === 'Control' ? '#422006' : '#7B341E',
-                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.12)',
-                whiteSpace: 'nowrap'
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8
               }}
             >
-              {displayLabel}
+              <Button
+                size="xs"
+                minW="32px"
+                h="32px"
+                px={0}
+                borderRadius="10px"
+                variant="outline"
+                colorScheme={isDarkMode ? 'yellow' : 'gray'}
+                onClick={() => setIsDarkMode((prev) => !prev)}
+                aria-label={isDarkMode ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+              >
+                ☀️🌙
+              </Button>
+              <div
+                style={{
+                  background: displayLabel === 'Control' ? '#FDE047' : '#FEEBC8',
+                  border: displayLabel === 'Control' ? '1px solid #FACC15' : '1px solid #F6AD55',
+                  borderRadius: 999,
+                  padding: '6px 12px',
+                  fontSize: 14,
+                  fontWeight: 600,
+                  color: displayLabel === 'Control' ? '#422006' : '#7B341E',
+                  boxShadow: '0 1px 3px rgba(0, 0, 0, 0.12)',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                {displayLabel}
+              </div>
             </div>
             {currentGroup === 'servicios' ? (
             <>
@@ -6684,8 +6978,10 @@ function App() {
                   maxW="260px"
                   flex={1}
                   minW="160px"
-                  bg="white"
-                  borderColor="gray.300"
+                  bg={listInputBg}
+                  borderColor={listInputBorder}
+                  color={isDarkMode ? 'gray.100' : 'gray.800'}
+                  _placeholder={{ color: isDarkMode ? 'gray.400' : 'gray.500' }}
                 />
               </HStack>
               {serviceIssuesLoading ? (
@@ -6698,7 +6994,7 @@ function App() {
                   .filter(([groupLabel]) => (serviciosGroupFilter === 'gruta' && groupLabel === 'Gruta') || (serviciosGroupFilter === 'parque' && groupLabel === 'Parque'))
                   .map(([groupLabel, bySystem]) => (
                   <Box key={groupLabel}>
-                    <Heading size="sm" mb={3} color="gray.800">
+                    <Heading size="sm" mb={3} color={listHeadingColor}>
                       {groupLabel}
                     </Heading>
                     {Object.entries(bySystem)
@@ -6713,7 +7009,7 @@ function App() {
                       .filter(([, filtered]) => filtered.length > 0)
                       .map(([systemLabel, services]) => (
                       <Box key={systemLabel} mb={4}>
-                        <Text fontSize="sm" fontWeight="bold" color="gray.800" mb={2}>
+                        <Text fontSize="sm" fontWeight="bold" color={listHeadingColor} mb={2}>
                           {systemLabel}
                         </Text>
                         <Stack spacing={1}>
@@ -6722,16 +7018,16 @@ function App() {
                               key={s.id}
                               py={2}
                               px={3}
-                              bg="gray.800"
+                              bg={listCardBg}
                               borderRadius="md"
                               borderWidth="1px"
-                              borderColor="gray.600"
+                              borderColor={listCardBorder}
                               cursor={s.issueKey ? 'pointer' : undefined}
                               onClick={s.issueKey ? () => openServiciosModal(s) : undefined}
-                              _hover={s.issueKey ? { bg: 'gray.700' } : undefined}
+                              _hover={s.issueKey ? { bg: listCardHoverBg } : undefined}
                             >
                               <HStack justify="space-between" flexWrap="wrap" gap={2}>
-                                <Text fontSize="sm" fontWeight="medium" color="gray.100">
+                                <Text fontSize="sm" fontWeight="medium" color={listCardText}>
                                   {(s.issueKey && serviceIssuesData[s.issueKey]?.summary) || s.label || s.id}
                                 </Text>
                                 {s.issueKey && serviceIssuesData[s.issueKey]?.status != null ? (
@@ -6741,7 +7037,7 @@ function App() {
                                 ) : null}
                               </HStack>
                               {s.issueKey && (
-                                <Text fontSize="xs" color="gray.400" mt={1}>
+                                <Text fontSize="xs" color={listCardMeta} mt={1}>
                                   {s.issueKey}
                                 </Text>
                               )}
@@ -6802,7 +7098,7 @@ function App() {
                   </Stack>
                 </ModalBody>
                 <ModalFooter>
-                  <Button size="sm" variant="ghost" onClick={closeServiciosModal}>
+                  <Button size="sm" variant="ghost" color={modalGhostColor} _hover={{ bg: modalGhostHoverBg }} onClick={closeServiciosModal}>
                     Cancelar
                   </Button>
                 </ModalFooter>
@@ -6824,10 +7120,10 @@ function App() {
                   />
                 </ModalBody>
                 <ModalFooter>
-                  <Button size="sm" variant="ghost" mr={2} onClick={closeServiciosNameModal}>
+                  <Button size="sm" variant="ghost" color={modalGhostColor} _hover={{ bg: modalGhostHoverBg }} mr={2} onClick={closeServiciosNameModal}>
                     Cancelar
                   </Button>
-                  <Button size="sm" colorScheme="blue" onClick={handleServiciosTransitionWithName} isDisabled={serviciosTransitionSaving}>
+                  <Button size="sm" {...modalActionButtonProps} onClick={handleServiciosTransitionWithName} isDisabled={serviciosTransitionSaving}>
                     {serviciosTransitionSaving ? <Spinner size="xs" /> : 'Confirmar cambio'}
                   </Button>
                 </ModalFooter>
@@ -6835,7 +7131,7 @@ function App() {
             </Modal>
             </>
             ) : currentGroup === 'control' ? (
-            <Box pt={1} px={3} pb={4} overflowY="auto" h="100%" position="absolute" inset={0} top={32}>
+            <Box pt={1} px={3} pb={4} overflowY="auto" h="100%" position="absolute" inset={0} top={32} bg={listOverlayBg}>
               {controlLoading ? (
                 <Flex justify="center" align="center" h="50%">
                   <Spinner size="lg" color="gray.300" />
@@ -6849,26 +7145,26 @@ function App() {
                     if (items.length === 0) return null
                     return (
                       <Box key={type}>
-                        <Heading size="sm" mb={2} color="gray.800">{type}</Heading>
+                        <Heading size="sm" mb={2} color={listHeadingColor}>{type}</Heading>
                         <Stack spacing={2}>
                           {items.map((item) => (
                             <Box
                               key={item.key}
                               p={3}
-                              bg="gray.800"
+                              bg={listCardBg}
                               borderRadius="md"
                               borderWidth="1px"
-                              borderColor="gray.600"
+                              borderColor={listCardBorder}
                               cursor="pointer"
                               onClick={() => openControlEpicModal(item)}
-                              _hover={{ bg: 'gray.700' }}
+                              _hover={{ bg: listCardHoverBg }}
                             >
                               <HStack justify="space-between" flexWrap="wrap" gap={2}>
                                 <Badge colorScheme="blue">{item.key}</Badge>
                                 {item.status ? transitionBadge(item.status) : <Badge colorScheme="gray">Sin estado</Badge>}
                               </HStack>
-                              <Text fontSize="sm" fontWeight="medium" mt={1} color="gray.100">{item.summary || item.key}</Text>
-                              <Text fontSize="xs" color="gray.400">
+                              <Text fontSize="sm" fontWeight="medium" mt={1} color={listCardText}>{item.summary || item.key}</Text>
+                              <Text fontSize="xs" color={listCardMeta}>
                                 Epic: {item.epicSummary ? `${item.epicSummary} (${item.epicKey})` : item.epicKey || 'Sin Epic'}
                               </Text>
                             </Box>
@@ -6945,10 +7241,10 @@ function App() {
                     </Stack>
                   </ModalBody>
                   <ModalFooter>
-                    <Button size="sm" variant="ghost" onClick={closeControlEpicModal}>
+                    <Button size="sm" variant="ghost" color={modalGhostColor} _hover={{ bg: modalGhostHoverBg }} onClick={closeControlEpicModal}>
                       Cancelar
                     </Button>
-                    <Button size="sm" colorScheme="blue" onClick={handleControlEpicSave} isDisabled={controlEpicSaving || controlEpicLoading}>
+                    <Button size="sm" {...modalActionButtonProps} onClick={handleControlEpicSave} isDisabled={controlEpicSaving || controlEpicLoading}>
                       {controlEpicSaving ? <Spinner size="xs" /> : 'Guardar'}
                     </Button>
                   </ModalFooter>
@@ -6973,10 +7269,10 @@ function App() {
                   </ModalBody>
                   <ModalFooter flexShrink={0} flexWrap="wrap" gap={2}>
                     <Stack direction={{ base: 'column', sm: 'row' }} w="100%" spacing={2}>
-                      <Button type="button" size="sm" variant="ghost" onClick={() => closeControlBreakdownModal()} minH="44px" flex={1}>
+                      <Button type="button" size="sm" variant="ghost" color={modalGhostColor} _hover={{ bg: modalGhostHoverBg }} onClick={() => closeControlBreakdownModal()} minH="44px" flex={1}>
                         Cancelar
                       </Button>
-                      <Button type="button" size="sm" colorScheme="blue" onClick={handleControlTransitionWithExplanation} isDisabled={controlTransitionSaving || !controlBreakdownExplanation.trim()} minH="44px" flex={1}>
+                      <Button type="button" size="sm" {...modalActionButtonProps} onClick={handleControlTransitionWithExplanation} isDisabled={controlTransitionSaving || !controlBreakdownExplanation.trim()} minH="44px" flex={1}>
                         {controlTransitionSaving ? <Spinner size="xs" /> : 'Confirmar cambio de estado'}
                       </Button>
                     </Stack>
@@ -6990,7 +7286,7 @@ function App() {
                 <ReactFlow
                   nodeTypes={nodeTypes}
                   nodes={diagramNodesForDesktop}
-                  edges={filteredActiveEdges}
+                  edges={visualActiveEdges}
                   onNodesChange={activeOnNodesChange}
                   onEdgesChange={activeOnEdgesChange}
                   onConnect={onConnect}
@@ -7004,7 +7300,7 @@ function App() {
                   onNodeClick={onNodeClick}
                   onEdgeClick={onEdgeClick}
                   noPanClassName="nopan"
-                  style={{ width: '100%', height: '100%', position: 'absolute', inset: 0 }}
+                  style={{ width: '100%', height: '100%', position: 'absolute', inset: 0, background: isDarkMode ? '#0F172A' : '#FFFFFF' }}
                   defaultViewport={{ x: 0, y: 0, zoom: (currentGroup === 'gruta' || currentGroup === 'parque') ? 1.75 : 0.88 }}
                   nodesDraggable={false}
                   nodesConnectable={false}
@@ -7017,11 +7313,11 @@ function App() {
                   translateExtent={VIEW_BOUNDS}
                   nodeExtent={VIEW_BOUNDS}
                 >
-                  <Background gap={16} color="#EDF2F7" />
+                  <Background gap={16} color={flowGridColor} />
                 </ReactFlow>
               </Box>
               {currentSystem === 'gruta1' && (
-                <Box flexShrink={0} p={2} px={3} bg="white" borderTopWidth="1px" borderColor="gray.200" fontSize="xs" lineHeight="1.4" color="gray.600">
+                <Box flexShrink={0} p={2} px={3} bg={panelBg} borderTopWidth="1px" borderColor={panelBorder} fontSize="xs" lineHeight="1.4" color={textMuted}>
                   <Text as="span">Cambiar de estado la bomba, el componente eléctrico o la cañería de succión de este sistema afecta al Sistema Hidro, para volver a funcionamiento el mismo debe volverse a funcionamiento el Sistema Hidro.</Text>
                 </Box>
               )}

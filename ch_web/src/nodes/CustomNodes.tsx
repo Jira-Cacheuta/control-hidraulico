@@ -184,6 +184,7 @@ export function PipeSegmentNode({ data }: NodeProps) {
       <StatusBadge status={data?.status} bottom={-12} />
       <Handle type="source" position={Position.Bottom} id="out-bottom" style={{ opacity: 0 }} />
       <Handle type="target" position={Position.Top} id="in-top" style={{ opacity: 0 }} />
+      <Handle type="target" position={Position.Bottom} id="in-bottom" style={{ opacity: 0 }} />
     </div>
   )
 }
@@ -516,6 +517,19 @@ export function HydroSystemNode({ data }: NodeProps) {
   )
 }
 
+// Nodo de alimentación activa hacia pozos (círculo amarillo con nombre de sistema)
+export function WaterFeedNode({ data }: NodeProps) {
+  return (
+    <div className="nopan" style={{ width: 'clamp(90px, 11vw, 120px)', height: 'clamp(90px, 11vw, 120px)', position: 'relative' }}>
+      <svg width="100%" height="100%" viewBox="0 0 120 120">
+        <circle cx="60" cy="60" r="52" fill="#FDE68A" stroke="#B45309" strokeWidth="3" />
+        <ShapeText text={data?.label ?? 'Sistema'} color="#7C2D12" fontSize={10} />
+      </svg>
+      <Handle type="source" position={Position.Right} id="out-right" style={{ opacity: 0 }} />
+    </div>
+  )
+}
+
 export const nodeTypes = {
   suction: SuctionNode,
   pipe: PipeNode,
@@ -533,6 +547,7 @@ export const nodeTypes = {
   service: ServiceNode,
   cloudService: CloudServiceNode,
   hydroSystem: HydroSystemNode,
+  waterFeed: WaterFeedNode,
 }
 
 
