@@ -13,6 +13,53 @@ const ISSUE_POLL_MS = 10000
 function normalizeForSearch(s: string): string {
   return (s || '').toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '')
 }
+
+type ControlPiletasRow = {
+  key: string
+  summary?: string
+  status?: string
+  statusCategory?: string
+  issueType?: string
+  updated?: string
+}
+
+type ControlPiletasDetailApi = {
+  key: string
+  summary?: string
+  status?: string
+  updated?: string
+  scriptRunner: {
+    fechaUltimaActualizacion: string
+    fechaIso: string | null
+    usuario: string
+    epic: string
+    diaria: string
+    opcionesActuales: string
+    opcionesAgregadas: string
+    opcionesQuitadas: string
+  } | null
+}
+
+function controlPiletasKeyNum(key: string): number {
+  const m = key.match(/^CP-(\d+)$/i)
+  return m ? parseInt(m[1], 10) : NaN
+}
+
+function formatTiempoRelativoDesde(iso?: string): string {
+  if (!iso) return '—'
+  const t = new Date(iso).getTime()
+  if (Number.isNaN(t)) return '—'
+  const sec = Math.floor((Date.now() - t) / 1000)
+  if (sec < 45) return 'hace un momento'
+  const min = Math.floor(sec / 60)
+  if (min < 60) return `hace ${min} min`
+  const h = Math.floor(min / 60)
+  if (h < 36) return `hace ${h} h`
+  const d = Math.floor(h / 24)
+  if (d < 21) return `hace ${d} día${d !== 1 ? 's' : ''}`
+  const w = Math.floor(d / 7)
+  return `hace ${w} sem.`
+}
 const VIEW_BOUNDS: [[number, number], [number, number]] = [[-80, -80], [860, 1100]]
 const WATER_FIELD_ID = 'customfield_11815'
 const WATER_FIELD_LABEL = 'Alimentación de agua'
@@ -71,7 +118,8 @@ const SYSTEM_GROUPS = [
   { id: 'parque', label: 'Parque' },
   { id: 'servicios', label: 'Servicios' },
   { id: 'pozos', label: 'Pozos' },
-  { id: 'control', label: 'Control' }
+  { id: 'control', label: 'Control' },
+  { id: 'controlPiletas', label: 'Control piletas' }
 ]
 
 /** Mapeo nodo bomba/soplador -> issueKey del puesto. Si el puesto no tiene activeKey, se oculta el ícono. */
@@ -4109,6 +4157,12 @@ function App() {
     source: 'control' | 'diagram'
   }>({ open: false, transitionId: '', transitionName: '', issueKey: null, source: 'control' })
   const [controlBreakdownExplanation, setControlBreakdownExplanation] = useState('')
+  const [controlPiletasIssues, setControlPiletasIssues] = useState<ControlPiletasRow[]>([])
+  const [controlPiletasLoading, setControlPiletasLoading] = useState(false)
+  const [controlPiletasGroupFilter, setControlPiletasGroupFilter] = useState<'gruta' | 'parque'>('gruta')
+  const [controlPiletasModalItem, setControlPiletasModalItem] = useState<ControlPiletasRow | null>(null)
+  const [controlPiletasDetail, setControlPiletasDetail] = useState<ControlPiletasDetailApi | null>(null)
+  const [controlPiletasDetailLoading, setControlPiletasDetailLoading] = useState(false)
   const [serviceIssuesData, setServiceIssuesData] = useState<Record<string, { summary?: string; status?: string }>>({})
   const [serviceIssuesLoading, setServiceIssuesLoading] = useState(false)
   const [serviciosModalItem, setServiciosModalItem] = useState<{ key: string; summary?: string; status?: string } | null>(null)
@@ -4154,7 +4208,14 @@ function App() {
   }
 
   const currentSystemLabel = SYSTEMS.find((sys) => sys.id === currentSystem)?.label ?? 'Sistema'
-  const displayLabel = currentGroup === 'control' ? 'Control' : currentGroup === 'servicios' ? 'Servicios' : currentSystemLabel
+  const displayLabel =
+    currentGroup === 'control'
+      ? 'Control'
+      : currentGroup === 'controlPiletas'
+        ? 'Control piletas'
+        : currentGroup === 'servicios'
+          ? 'Servicios'
+          : currentSystemLabel
   const appBg = isDarkMode ? '#111827' : '#F7FAFC'
   const panelBg = isDarkMode ? '#1F2937' : '#FFFFFF'
   const panelBorder = isDarkMode ? '#374151' : '#E2E8F0'
@@ -5204,8 +5265,61 @@ function App() {
   }, [currentGroup])
 
   useEffect(() => {
-    if (currentGroup === 'control') setDiagramAreaHeight(null)
+    if (currentGroup !== 'controlPiletas') return
+    let cancelled = false
+    setControlPiletasLoading(true)
+    fetch(`${API_BASE_URL}/api/issues/control-piletas`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (cancelled) return
+        const incoming = (data.issues || []) as ControlPiletasRow[]
+        setControlPiletasIssues(incoming)
+      })
+      .catch(() => {
+        if (!cancelled) setControlPiletasIssues([])
+      })
+      .finally(() => {
+        if (!cancelled) setControlPiletasLoading(false)
+      })
+    return () => { cancelled = true }
   }, [currentGroup])
+
+  const controlPiletasFiltered = useMemo(() => {
+    return controlPiletasIssues.filter((i) => {
+      const n = controlPiletasKeyNum(i.key)
+      if (Number.isNaN(n)) return false
+      if (controlPiletasGroupFilter === 'gruta') return n >= 1 && n <= 14
+      return n >= 15 && n <= 44
+    })
+  }, [controlPiletasIssues, controlPiletasGroupFilter])
+
+  const closeControlPiletasModal = useCallback(() => {
+    setControlPiletasModalItem(null)
+    setControlPiletasDetail(null)
+    setControlPiletasDetailLoading(false)
+  }, [])
+
+  const openControlPiletasModal = useCallback((row: ControlPiletasRow) => {
+    setControlPiletasModalItem(row)
+    setControlPiletasDetail(null)
+    setControlPiletasDetailLoading(true)
+    fetch(`${API_BASE_URL}/api/issues/${encodeURIComponent(row.key)}/control-piletas-detail`)
+      .then((res) => res.json())
+      .then((data: ControlPiletasDetailApi & { error?: string }) => {
+        if ( data?.error ) {
+          setControlPiletasDetail(null)
+          return
+        }
+        setControlPiletasDetail(data)
+      })
+      .catch(() => setControlPiletasDetail(null))
+      .finally(() => setControlPiletasDetailLoading(false))
+  }, [])
+
+  useEffect(() => {
+    if (currentGroup === 'control' || currentGroup === 'controlPiletas') setDiagramAreaHeight(null)
+  }, [currentGroup])
+
 
   const openControlEpicModal = (item: typeof controlIssues[0]) => {
     setControlEpicModalItem(item)
@@ -5678,6 +5792,210 @@ function App() {
     )
   }
 
+  /**
+   * Semáforo piletas CP: verde = operativa (100 %); amarillo = intermedia (50 %); azul = llenando;
+   * naranja = vaciándose; gris = vacía. Orden: estados compuestos antes que vacía (evita confundir con vaciándose).
+   */
+  const controlPiletasStatusBadge = (status: string) => {
+    const t = normalizeForSearch(status)
+    let colorScheme: 'green' | 'yellow' | 'orange' | 'cyan' | 'gray' = 'gray'
+    if (t.includes('vaciandose')) colorScheme = 'orange'
+    else if (/\bllenando\s*50\b/.test(t) || t.includes('llenando 50')) colorScheme = 'yellow'
+    else if (t.includes('llena 100') || t.includes('llena100')) colorScheme = 'green'
+    else if (t.includes('llenandose')) colorScheme = 'cyan'
+    else if (t === 'vacia') colorScheme = 'gray'
+    return (
+      <Badge colorScheme={colorScheme} variant="solid" px={2.5} py={0.5} borderRadius="md" title={status}>
+        {status}
+      </Badge>
+    )
+  }
+
+  const controlPiletasFilterButtons = (
+    <HStack mb={3} spacing={2} flexWrap="wrap" align="center">
+      <Button
+        size="sm"
+        variant={controlPiletasGroupFilter === 'gruta' ? 'solid' : 'outline'}
+        colorScheme="blue"
+        onClick={() => setControlPiletasGroupFilter('gruta')}
+      >
+        Gruta
+      </Button>
+      <Button
+        size="sm"
+        variant={controlPiletasGroupFilter === 'parque' ? 'solid' : 'outline'}
+        colorScheme="blue"
+        onClick={() => setControlPiletasGroupFilter('parque')}
+      >
+        Parque
+      </Button>
+    </HStack>
+  )
+
+  const controlPiletasListRows = (
+    <Stack spacing={1}>
+      {controlPiletasFiltered.map((row) => (
+        <Box
+          key={row.key}
+          py={2}
+          px={3}
+          bg={listCardBg}
+          borderRadius="md"
+          borderWidth="1px"
+          borderColor={listCardBorder}
+          cursor="pointer"
+          onClick={() => openControlPiletasModal(row)}
+          _hover={{ bg: listCardHoverBg }}
+        >
+          <HStack justify="space-between" flexWrap="wrap" gap={2} align="flex-start">
+            <Text fontSize="sm" fontWeight="medium" color={listCardText} flex="1" minW={0}>
+              {row.summary || row.key}
+            </Text>
+            <HStack spacing={2} flexShrink={0} align="center" flexWrap="wrap">
+              {row.status ? controlPiletasStatusBadge(row.status) : <Badge colorScheme="gray">Sin estado</Badge>}
+              <Text fontSize="xs" color={listCardMeta} whiteSpace="nowrap">
+                {formatTiempoRelativoDesde(row.updated)}
+              </Text>
+            </HStack>
+          </HStack>
+        </Box>
+      ))}
+    </Stack>
+  )
+
+  const controlPiletasMobileOverlay = (
+    <Box
+      position="fixed"
+      top={0}
+      left={0}
+      right={0}
+      bottom={0}
+      zIndex={4}
+      bg={listOverlayBg}
+      display="flex"
+      flexDirection="column"
+      pt="max(76px, calc(env(safe-area-inset-top, 0px) + 60px))"
+      style={{ touchAction: 'pan-y' }}
+    >
+      <Box px={3} pb={2} flexShrink={0}>
+        {controlPiletasFilterButtons}
+      </Box>
+      <Box
+        flex={1}
+        minH={0}
+        overflowY="auto"
+        overflowX="hidden"
+        px={3}
+        pb="max(32px, env(safe-area-inset-bottom, 0px))"
+        style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }}
+      >
+        {controlPiletasLoading ? (
+          <Flex justify="center" align="center" h="50%">
+            <Spinner size="lg" color="gray.300" />
+          </Flex>
+        ) : controlPiletasFiltered.length === 0 ? (
+          <Text fontSize="sm" color={listCardMeta}>No hay piletas en este grupo.</Text>
+        ) : (
+          <Stack spacing={4}>
+            {controlPiletasListRows}
+            <Box minH="40px" aria-hidden />
+          </Stack>
+        )}
+      </Box>
+    </Box>
+  )
+
+  const controlPiletasDesktopList = (
+    <Box
+      pt={1}
+      px={3}
+      pb={12}
+      overflowY="auto"
+      overflowX="hidden"
+      position="absolute"
+      top={32}
+      left={0}
+      right={0}
+      bottom={0}
+      minH={0}
+      style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }}
+    >
+      {controlPiletasFilterButtons}
+      {controlPiletasLoading ? (
+        <Flex justify="center" align="center" h="50%">
+          <Spinner size="lg" color="gray.300" />
+        </Flex>
+      ) : controlPiletasFiltered.length === 0 ? (
+        <Text fontSize="sm" color={listCardMeta}>No hay piletas en este grupo.</Text>
+      ) : (
+        <Stack spacing={4}>
+          {controlPiletasListRows}
+          <Box minH="120px" aria-hidden />
+        </Stack>
+      )}
+    </Box>
+  )
+
+  const controlPiletasDetailModal = (
+    <Modal isOpen={!!controlPiletasModalItem} onClose={closeControlPiletasModal} isCentered size="md" scrollBehavior="inside">
+      <ModalOverlay bg="blackAlpha.400 " />
+      <ModalContent maxW={{ base: '94vw', md: '480px' }} maxH="85vh" display="flex" flexDirection="column">
+        <ModalHeader flexShrink={0}>
+          {controlPiletasModalItem && (
+            <>
+              <Text fontWeight="bold" noOfLines={3} color={listHeadingColor}>
+                {controlPiletasModalItem.summary || controlPiletasModalItem.key}
+              </Text>
+              <Badge mt={2} colorScheme="blue">{controlPiletasModalItem.key}</Badge>
+            </>
+          )}
+        </ModalHeader>
+        <ModalBody overflowY="auto" flex="1" minH={0} py={2}>
+          {controlPiletasDetailLoading ? (
+            <Flex justify="center" py={6}>
+              <Spinner color="gray.400" />
+            </Flex>
+          ) : (
+            <Stack spacing={4}>
+              <Box>
+                <Text fontSize="sm" fontWeight="semibold" mb={1} color={listHeadingColor}>Estado</Text>
+                <HStack spacing={2} flexWrap="wrap" align="center">
+                  {controlPiletasModalItem?.status ? controlPiletasStatusBadge(controlPiletasModalItem.status) : <Text fontSize="sm">—</Text>}
+                  <Text fontSize="xs" color={listCardMeta}>
+                    {formatTiempoRelativoDesde(
+                      controlPiletasDetail?.scriptRunner?.fechaIso ?? controlPiletasModalItem?.updated
+                    )}
+                  </Text>
+                </HStack>
+              </Box>
+              <Divider />
+              <Box>
+                {controlPiletasDetail?.scriptRunner ? (
+                  <Stack spacing={2} fontSize="sm">
+                    <Text color={listCardText}><Text as="span" fontWeight="semibold">Fecha última actualización:</Text> {controlPiletasDetail.scriptRunner.fechaUltimaActualizacion || '—'}</Text>
+                    <Text color={listCardText}><Text as="span" fontWeight="semibold">Usuario:</Text> {controlPiletasDetail.scriptRunner.usuario || '—'}</Text>
+                    <Text color={listCardText}><Text as="span" fontWeight="semibold">Epic:</Text> {controlPiletasDetail.scriptRunner.epic || '—'}</Text>
+                    <Text color={listCardText}><Text as="span" fontWeight="semibold">Diaria:</Text> {controlPiletasDetail.scriptRunner.diaria || '—'}</Text>
+                    <Text color={listCardText}><Text as="span" fontWeight="semibold">Opciones actuales:</Text> {controlPiletasDetail.scriptRunner.opcionesActuales || '—'}</Text>
+                    <Text color={listCardText}><Text as="span" fontWeight="semibold">Opciones agregadas:</Text> {controlPiletasDetail.scriptRunner.opcionesAgregadas || '—'}</Text>
+                    <Text color={listCardText}><Text as="span" fontWeight="semibold">Opciones quitadas:</Text> {controlPiletasDetail.scriptRunner.opcionesQuitadas || '—'}</Text>
+                  </Stack>
+                ) : (
+                  <Text fontSize="sm" color={listCardMeta}>No hay un comentario reciente de automatización reconocible en esta issue.</Text>
+                )}
+              </Box>
+            </Stack>
+          )}
+        </ModalBody>
+        <ModalFooter flexShrink={0}>
+          <Button size="sm" variant="ghost" color={modalGhostColor} _hover={{ bg: modalGhostHoverBg }} onClick={closeControlPiletasModal}>
+            Cerrar
+          </Button>
+        </ModalFooter>
+      </ModalContent>
+    </Modal>
+  )
+
   const isWaterFieldNode = WATER_FIELD_ISSUE_KEYS.includes(transitionNode?.data?.issueKey ?? '')
   const currentWaterField = formatWaterFieldValue(transitionNode?.data?.customfield_11815)
   const isPuestoModal = isPuestoNode(transitionNode)
@@ -5717,7 +6035,7 @@ function App() {
                         className={`menu-item${currentGroup === group.id ? ' active' : ''}`}
                         onClick={() => {
                           setCurrentGroup(group.id)
-                          if (group.id === 'control' || group.id === 'servicios') {
+                          if (group.id === 'control' || group.id === 'servicios' || group.id === 'controlPiletas') {
                             setMenuOpen(false)
                           } else {
                             setMenuLevel('system')
@@ -6032,6 +6350,11 @@ function App() {
                 </ModalFooter>
               </ModalContent>
             </Modal>
+            </>
+          ) : currentGroup === 'controlPiletas' ? (
+            <>
+              {controlPiletasMobileOverlay}
+              {controlPiletasDetailModal}
             </>
           ) : currentGroup === 'control' ? (
             <Box pt={1} px={3} pb={4} overflowY="auto" h="100%" position="absolute" inset={0} top={32} bg={listOverlayBg}>
@@ -6830,7 +7153,11 @@ function App() {
                           className={`menu-item${currentGroup === group.id ? ' active' : ''}`}
                           onClick={() => {
                             setCurrentGroup(group.id)
-                            setMenuLevel('system')
+                            if (group.id === 'control' || group.id === 'servicios' || group.id === 'controlPiletas') {
+                              setMenuOpen(false)
+                            } else {
+                              setMenuLevel('system')
+                            }
                           }}
                         >
                           {group.label}
@@ -7129,6 +7456,11 @@ function App() {
                 </ModalFooter>
               </ModalContent>
             </Modal>
+            </>
+            ) : currentGroup === 'controlPiletas' ? (
+            <>
+              {controlPiletasDesktopList}
+              {controlPiletasDetailModal}
             </>
             ) : currentGroup === 'control' ? (
             <Box pt={1} px={3} pb={4} overflowY="auto" h="100%" position="absolute" inset={0} top={32} bg={listOverlayBg}>

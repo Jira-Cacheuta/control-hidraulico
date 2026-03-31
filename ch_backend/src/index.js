@@ -205,6 +205,105 @@ const WATER_FEED_PIPE_KEYS = {
   pozoLuisa: 'CH-996'
 }
 
+const CONTROL_PILETAS_KEY_MIN = 1
+const CONTROL_PILETAS_KEY_MAX = 44
+
+function buildControlPiletasKeys() {
+  const keys = []
+  for (let i = CONTROL_PILETAS_KEY_MIN; i <= CONTROL_PILETAS_KEY_MAX; i++) keys.push(`CP-${i}`)
+  return keys
+}
+
+function controlPiletasKeyNumber(key) {
+  const m = String(key).match(/^CP-(\d+)$/i)
+  return m ? parseInt(m[1], 10) : NaN
+}
+
+function adfNodeToPlain(node) {
+  if (!node) return ''
+  if (typeof node.text === 'string') return node.text
+  if (Array.isArray(node.content)) return node.content.map(adfNodeToPlain).join('')
+  return ''
+}
+
+function commentBodyToPlain(body) {
+  if (!body) return ''
+  if (typeof body === 'string') return body
+  if (body.type === 'doc' && Array.isArray(body.content)) {
+    return body.content.map(adfNodeToPlain).join('\n')
+  }
+  return ''
+}
+
+function isScriptRunnerAutomationComment(plain) {
+  const p = String(plain).toLowerCase()
+  return (
+    p.includes('opción ganadora') ||
+    p.includes('opcion ganadora') ||
+    p.includes('opciones actuales') ||
+    p.includes('estado calculado') ||
+    /\[20\d{2}-\d{2}-\d{2}\s+\d{2}:\d{2}\]/.test(p)
+  )
+}
+
+function parseScriptRunnerFields(text) {
+  const lines = String(text).split(/\r?\n/)
+  const out = {
+    usuario: '',
+    epic: '',
+    diaria: '',
+    opcionesActuales: '',
+    opcionesAgregadas: '',
+    opcionesQuitadas: ''
+  }
+  for (const line of lines) {
+    const t = line.trim()
+    // ScriptRunner escribe "[fecha] Usuario: nombre" en la primera línea
+    if (/^(?:\[[^\]]+\]\s*)?usuario\s*:/i.test(t))
+      out.usuario = t.replace(/^(?:\[[^\]]+\]\s*)?usuario\s*:\s*/i, '').trim()
+    else if (/^epic\s*:/i.test(t)) out.epic = t.replace(/^epic\s*:\s*/i, '').trim()
+    else if (/^diaria\s*:/i.test(t)) out.diaria = t.replace(/^diaria\s*:\s*/i, '').trim()
+    else if (/^opciones actuales\s*:/i.test(t)) out.opcionesActuales = t.replace(/^opciones actuales\s*:\s*/i, '').trim()
+    else if (/^opciones agregadas\s*:/i.test(t)) out.opcionesAgregadas = t.replace(/^opciones agregadas\s*:\s*/i, '').trim()
+    else if (/^opciones quitadas\s*:/i.test(t)) out.opcionesQuitadas = t.replace(/^opciones quitadas\s*:/i, '').trim()
+  }
+  return out
+}
+
+/** Jira devuelve comentarios en orden cronológico ascendente (más viejos primero).
+ * Sin paginar, maxResults=100 devuelve solo los 100 más antiguos y el “último” ScriptRunner puede quedar desfasado meses. */
+async function getLatestAutomationComment(jira, issueKey) {
+  const enc = encodeURIComponent(issueKey)
+  const pageSize = 100
+  let startAt = 0
+  let reportedTotal = null
+  const allComments = []
+  for (;;) {
+    const { data } = await jira.get(`/issue/${enc}/comment`, {
+      params: { maxResults: pageSize, startAt }
+    })
+    const batch = data.comments || []
+    if (typeof data.total === 'number') reportedTotal = data.total
+    allComments.push(...batch)
+    if (batch.length === 0) break
+    startAt += batch.length
+    if (reportedTotal != null && startAt >= reportedTotal) break
+    if (batch.length < pageSize) break
+  }
+  let best = null
+  let bestTime = -1
+  for (const c of allComments) {
+    const plain = commentBodyToPlain(c.body)
+    if (!isScriptRunnerAutomationComment(plain)) continue
+    const t = new Date(c.created).getTime()
+    if (!Number.isNaN(t) && t >= bestTime) {
+      bestTime = t
+      best = { created: c.created, plain, id: c.id }
+    }
+  }
+  return best
+}
+
 app.get('/api/epics', async (req, res) => {
   try {
     const jira = getJiraClient()
@@ -372,6 +471,73 @@ app.get('/api/issues/control', async (req, res) => {
       })
     }
     res.json({ issues: normalized })
+  } catch (error) {
+    const message = error?.response?.data?.errorMessages || error?.message
+    res.status(500).json({ error: message })
+  }
+})
+
+app.get('/api/issues/control-piletas', async (_req, res) => {
+  try {
+    const jira = getJiraClient()
+    const keys = buildControlPiletasKeys()
+    const quoted = keys.map((k) => `"${k}"`).join(',')
+    const jql = `key in (${quoted}) ORDER BY key`
+    const issues = await fetchIssuesByJql(jira, jql)
+    const normalized = issues.map((issue) => ({
+      key: issue.key,
+      summary: issue.fields?.summary || issue.key,
+      status: issue.fields?.status?.name || '',
+      statusCategory: issue.fields?.status?.statusCategory?.name || '',
+      issueType: issue.fields?.issuetype?.name || '',
+      updated: issue.fields?.updated || ''
+    }))
+    res.json({ issues: normalized })
+  } catch (error) {
+    const message = error?.response?.data?.errorMessages || error?.message
+    res.status(500).json({ error: message })
+  }
+})
+
+app.get('/api/issues/:key/control-piletas-detail', async (req, res) => {
+  try {
+    const key = (req.params.key || '').trim().toUpperCase()
+    const n = controlPiletasKeyNumber(key)
+    if (Number.isNaN(n) || n < CONTROL_PILETAS_KEY_MIN || n > CONTROL_PILETAS_KEY_MAX) {
+      return res.status(400).json({ error: 'Solo issues CP-1 … CP-44' })
+    }
+    const jira = getJiraClient()
+    const enc = encodeURIComponent(key)
+    const [issueRes, latest] = await Promise.all([
+      jira.get(`/issue/${enc}`, {
+        params: { fields: 'summary,status,updated' }
+      }),
+      getLatestAutomationComment(jira, key)
+    ])
+    const issue = issueRes.data
+    const plain = latest?.plain || ''
+    const parsed = parseScriptRunnerFields(plain)
+    const fechaUltima = latest?.created
+      ? new Date(latest.created).toLocaleString('es-AR', { dateStyle: 'long', timeStyle: 'short' })
+      : ''
+    res.json({
+      key,
+      summary: issue.fields?.summary,
+      status: issue.fields?.status?.name,
+      updated: issue.fields?.updated,
+      scriptRunner: latest
+        ? {
+            fechaUltimaActualizacion: fechaUltima,
+            fechaIso: latest.created,
+            usuario: parsed.usuario,
+            epic: parsed.epic,
+            diaria: parsed.diaria,
+            opcionesActuales: parsed.opcionesActuales,
+            opcionesAgregadas: parsed.opcionesAgregadas,
+            opcionesQuitadas: parsed.opcionesQuitadas
+          }
+        : null
+    })
   } catch (error) {
     const message = error?.response?.data?.errorMessages || error?.message
     res.status(500).json({ error: message })
