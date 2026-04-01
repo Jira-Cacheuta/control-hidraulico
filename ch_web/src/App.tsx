@@ -5902,16 +5902,48 @@ function App() {
       </HStack>
       <HStack spacing={2} flexWrap="wrap" align="center">
         {controlPiletasGroupFilter === 'gruta' ? (
-          <Button size="sm" variant="outline" colorScheme="teal" onClick={() => setControlPiletasMapOpen('gruta')}>
-            Ver plano
+          <Button
+            size="sm"
+            variant="outline"
+            colorScheme="teal"
+            px={3}
+            onClick={() => setControlPiletasMapOpen('gruta')}
+            aria-label="Ver plano Gruta"
+            title="Ver plano — Gruta"
+          >
+            🗺️
           </Button>
         ) : (
           <>
-            <Button size="sm" variant="outline" colorScheme="teal" onClick={() => setControlPiletasMapOpen('parque-arriba')}>
-              Ver plano (arriba)
+            <Button
+              size="sm"
+              variant="outline"
+              colorScheme="teal"
+              onClick={() => setControlPiletasMapOpen('parque-arriba')}
+              aria-label="Ver plano Parque nivel superior"
+              title="Plano Parque — arriba"
+            >
+              <Text as="span" fontSize="lg" lineHeight={1} aria-hidden>
+                🗺️
+              </Text>
+              <Text as="span" fontSize="xs" ml={1.5} lineHeight={1.2}>
+                (arriba)
+              </Text>
             </Button>
-            <Button size="sm" variant="outline" colorScheme="teal" onClick={() => setControlPiletasMapOpen('parque-abajo')}>
-              Ver plano (abajo)
+            <Button
+              size="sm"
+              variant="outline"
+              colorScheme="teal"
+              onClick={() => setControlPiletasMapOpen('parque-abajo')}
+              aria-label="Ver plano Parque nivel inferior"
+              title="Plano Parque — abajo"
+            >
+              <Text as="span" fontSize="lg" lineHeight={1} aria-hidden>
+                🗺️
+              </Text>
+              <Text as="span" fontSize="xs" ml={1.5} lineHeight={1.2}>
+                (abajo)
+              </Text>
             </Button>
           </>
         )}
