@@ -9,6 +9,24 @@ import './App.css'
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? ''
 const ISSUE_POLL_MS = 10000
 
+type ControlPiletasMapId = 'gruta' | 'parque-arriba' | 'parque-abajo'
+
+/** Planos servidos desde `ch_web/public/maps/` (base URL respeta subcarpeta en producción). */
+const CONTROL_PILETAS_MAPS: Record<ControlPiletasMapId, { src: string; title: string }> = {
+  gruta: {
+    src: `${import.meta.env.BASE_URL}maps/plano-gruta.pdf`,
+    title: 'Plano — Gruta'
+  },
+  'parque-arriba': {
+    src: `${import.meta.env.BASE_URL}maps/plano-parque-arriba.pdf`,
+    title: 'Plano — Parque (nivel superior)'
+  },
+  'parque-abajo': {
+    src: `${import.meta.env.BASE_URL}maps/plano-parque-abajo.pdf`,
+    title: 'Plano — Parque (nivel inferior)'
+  }
+}
+
 /** Normaliza texto para búsqueda: minúsculas y sin tildes. */
 function normalizeForSearch(s: string): string {
   return (s || '').toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '')
@@ -4163,6 +4181,7 @@ function App() {
   const [controlPiletasModalItem, setControlPiletasModalItem] = useState<ControlPiletasRow | null>(null)
   const [controlPiletasDetail, setControlPiletasDetail] = useState<ControlPiletasDetailApi | null>(null)
   const [controlPiletasDetailLoading, setControlPiletasDetailLoading] = useState(false)
+  const [controlPiletasMapOpen, setControlPiletasMapOpen] = useState<ControlPiletasMapId | null>(null)
   const [serviceIssuesData, setServiceIssuesData] = useState<Record<string, { summary?: string; status?: string }>>({})
   const [serviceIssuesLoading, setServiceIssuesLoading] = useState(false)
   const [serviciosModalItem, setServiciosModalItem] = useState<{ key: string; summary?: string; status?: string } | null>(null)
@@ -5299,6 +5318,8 @@ function App() {
     setControlPiletasDetailLoading(false)
   }, [])
 
+  const closeControlPiletasMapModal = useCallback(() => setControlPiletasMapOpen(null), [])
+
   const openControlPiletasModal = useCallback((row: ControlPiletasRow) => {
     setControlPiletasModalItem(row)
     setControlPiletasDetail(null)
@@ -5811,25 +5832,43 @@ function App() {
     )
   }
 
-  const controlPiletasFilterButtons = (
-    <HStack mb={3} spacing={2} flexWrap="wrap" align="center">
-      <Button
-        size="sm"
-        variant={controlPiletasGroupFilter === 'gruta' ? 'solid' : 'outline'}
-        colorScheme="blue"
-        onClick={() => setControlPiletasGroupFilter('gruta')}
-      >
-        Gruta
-      </Button>
-      <Button
-        size="sm"
-        variant={controlPiletasGroupFilter === 'parque' ? 'solid' : 'outline'}
-        colorScheme="blue"
-        onClick={() => setControlPiletasGroupFilter('parque')}
-      >
-        Parque
-      </Button>
-    </HStack>
+  const controlPiletasToolbar = (
+    <Stack spacing={2} mb={3}>
+      <HStack spacing={2} flexWrap="wrap" align="center">
+        <Button
+          size="sm"
+          variant={controlPiletasGroupFilter === 'gruta' ? 'solid' : 'outline'}
+          colorScheme="blue"
+          onClick={() => setControlPiletasGroupFilter('gruta')}
+        >
+          Gruta
+        </Button>
+        <Button
+          size="sm"
+          variant={controlPiletasGroupFilter === 'parque' ? 'solid' : 'outline'}
+          colorScheme="blue"
+          onClick={() => setControlPiletasGroupFilter('parque')}
+        >
+          Parque
+        </Button>
+      </HStack>
+      <HStack spacing={2} flexWrap="wrap" align="center">
+        {controlPiletasGroupFilter === 'gruta' ? (
+          <Button size="sm" variant="outline" colorScheme="teal" onClick={() => setControlPiletasMapOpen('gruta')}>
+            Ver plano Gruta
+          </Button>
+        ) : (
+          <>
+            <Button size="sm" variant="outline" colorScheme="teal" onClick={() => setControlPiletasMapOpen('parque-arriba')}>
+              Plano Parque — arriba
+            </Button>
+            <Button size="sm" variant="outline" colorScheme="teal" onClick={() => setControlPiletasMapOpen('parque-abajo')}>
+              Plano Parque — abajo
+            </Button>
+          </>
+        )}
+      </HStack>
+    </Stack>
   )
 
   const controlPiletasListRows = (
@@ -5878,7 +5917,7 @@ function App() {
       style={{ touchAction: 'pan-y' }}
     >
       <Box px={3} pb={2} flexShrink={0}>
-        {controlPiletasFilterButtons}
+        {controlPiletasToolbar}
       </Box>
       <Box
         flex={1}
@@ -5920,7 +5959,7 @@ function App() {
       minH={0}
       style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }}
     >
-      {controlPiletasFilterButtons}
+      {controlPiletasToolbar}
       {controlPiletasLoading ? (
         <Flex justify="center" align="center" h="50%">
           <Spinner size="lg" color="gray.300" />
@@ -5934,6 +5973,45 @@ function App() {
         </Stack>
       )}
     </Box>
+  )
+
+  const controlPiletasMapModal = (
+    <Modal isOpen={controlPiletasMapOpen != null} onClose={closeControlPiletasMapModal} size="full">
+      <ModalOverlay bg="blackAlpha.600" />
+      <ModalContent
+        m={0}
+        maxW="100vw"
+        maxH="100dvh"
+        borderRadius={{ base: 0, md: 'md' }}
+        display="flex"
+        flexDirection="column"
+        bg={listOverlayBg}
+      >
+        <ModalHeader flexShrink={0} py={3} borderBottomWidth="1px" borderColor={listCardBorder} color={listHeadingColor}>
+          {controlPiletasMapOpen ? CONTROL_PILETAS_MAPS[controlPiletasMapOpen].title : ''}
+        </ModalHeader>
+        <ModalBody flex="1" p={0} minH={0} overflow="hidden" display="flex" flexDirection="column">
+          {controlPiletasMapOpen ? (
+            <iframe
+              title={CONTROL_PILETAS_MAPS[controlPiletasMapOpen].title}
+              src={CONTROL_PILETAS_MAPS[controlPiletasMapOpen].src}
+              style={{
+                flex: 1,
+                width: '100%',
+                minHeight: 'min(85dvh, 800px)',
+                border: 0,
+                background: isDarkMode ? '#1a1a1a' : '#f7fafc'
+              }}
+            />
+          ) : null}
+        </ModalBody>
+        <ModalFooter flexShrink={0} borderTopWidth="1px" borderColor={listCardBorder}>
+          <Button size="sm" variant="ghost" color={modalGhostColor} _hover={{ bg: modalGhostHoverBg }} onClick={closeControlPiletasMapModal}>
+            Cerrar
+          </Button>
+        </ModalFooter>
+      </ModalContent>
+    </Modal>
   )
 
   const controlPiletasDetailModal = (
@@ -6355,6 +6433,7 @@ function App() {
             <>
               {controlPiletasMobileOverlay}
               {controlPiletasDetailModal}
+              {controlPiletasMapModal}
             </>
           ) : currentGroup === 'control' ? (
             <Box pt={1} px={3} pb={4} overflowY="auto" h="100%" position="absolute" inset={0} top={32} bg={listOverlayBg}>
@@ -7461,6 +7540,7 @@ function App() {
             <>
               {controlPiletasDesktopList}
               {controlPiletasDetailModal}
+              {controlPiletasMapModal}
             </>
             ) : currentGroup === 'control' ? (
             <Box pt={1} px={3} pb={4} overflowY="auto" h="100%" position="absolute" inset={0} top={32} bg={listOverlayBg}>
