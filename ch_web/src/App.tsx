@@ -140,6 +140,11 @@ const SYSTEM_GROUPS = [
   { id: 'controlPiletas', label: 'Control piletas' }
 ]
 
+/** Menú hamburguesa de Control hidráulico (sin piletas; esa app tiene entrada propia desde el inicio). */
+const SYSTEM_GROUPS_HIDRAULICO = SYSTEM_GROUPS.filter((g) => g.id !== 'controlPiletas')
+
+type AppEntry = 'home' | 'hidraulico' | 'piletas'
+
 /** Mapeo nodo bomba/soplador -> issueKey del puesto. Si el puesto no tiene activeKey, se oculta el ícono. */
 const PUMP_NODE_TO_PUESTO_KEY: Record<string, string> = {
   'bomba': 'CH-5',
@@ -4154,6 +4159,16 @@ function App() {
   })
   const [currentSystem, setCurrentSystem] = useState('gruta1')
   const [currentGroup, setCurrentGroup] = useState('gruta')
+  const [appEntry, setAppEntry] = useState<AppEntry>(() => {
+    try {
+      if (typeof window === 'undefined') return 'home'
+      const v = window.sessionStorage.getItem('ch_app_entry')
+      if (v === 'hidraulico' || v === 'piletas') return v
+    } catch {
+      // noop
+    }
+    return 'home'
+  })
   const [menuLevel, setMenuLevel] = useState<'group' | 'system'>('group')
   const [controlIssues, setControlIssues] = useState<
     Array<{ key: string; summary?: string; status?: string; issueType?: string; epicKey?: string; epicSummary?: string; sector?: string }>
@@ -5284,7 +5299,7 @@ function App() {
   }, [currentGroup])
 
   useEffect(() => {
-    if (currentGroup !== 'controlPiletas') return
+    if (appEntry !== 'piletas' && currentGroup !== 'controlPiletas') return
     let cancelled = false
     setControlPiletasLoading(true)
     fetch(`${API_BASE_URL}/api/issues/control-piletas`)
@@ -5301,7 +5316,7 @@ function App() {
         if (!cancelled) setControlPiletasLoading(false)
       })
     return () => { cancelled = true }
-  }, [currentGroup])
+  }, [appEntry, currentGroup])
 
   const controlPiletasFiltered = useMemo(() => {
     return controlPiletasIssues.filter((i) => {
@@ -5319,6 +5334,39 @@ function App() {
   }, [])
 
   const closeControlPiletasMapModal = useCallback(() => setControlPiletasMapOpen(null), [])
+
+  const goHome = useCallback(() => {
+    setAppEntry('home')
+    setMenuOpen(false)
+    setMenuLevel('group')
+  }, [])
+
+  const enterHidraulico = useCallback(() => {
+    setAppEntry('hidraulico')
+    setMenuOpen(false)
+    setMenuLevel('group')
+  }, [])
+
+  const enterPiletasApp = useCallback(() => {
+    setAppEntry('piletas')
+    setMenuOpen(false)
+    setMenuLevel('group')
+  }, [])
+
+  useEffect(() => {
+    try {
+      if (typeof window === 'undefined') return
+      if (appEntry === 'home') window.sessionStorage.removeItem('ch_app_entry')
+      else window.sessionStorage.setItem('ch_app_entry', appEntry)
+    } catch {
+      // noop
+    }
+  }, [appEntry])
+
+  useEffect(() => {
+    if (appEntry === 'piletas') setCurrentGroup('controlPiletas')
+    else if (appEntry === 'hidraulico') setCurrentGroup((g) => (g === 'controlPiletas' ? 'gruta' : g))
+  }, [appEntry])
 
   const openControlPiletasModal = useCallback((row: ControlPiletasRow) => {
     setControlPiletasModalItem(row)
@@ -5855,15 +5903,15 @@ function App() {
       <HStack spacing={2} flexWrap="wrap" align="center">
         {controlPiletasGroupFilter === 'gruta' ? (
           <Button size="sm" variant="outline" colorScheme="teal" onClick={() => setControlPiletasMapOpen('gruta')}>
-            Ver plano Gruta
+            Ver plano
           </Button>
         ) : (
           <>
             <Button size="sm" variant="outline" colorScheme="teal" onClick={() => setControlPiletasMapOpen('parque-arriba')}>
-              Plano Parque — arriba
+              Ver plano (arriba)
             </Button>
             <Button size="sm" variant="outline" colorScheme="teal" onClick={() => setControlPiletasMapOpen('parque-abajo')}>
-              Plano Parque — abajo
+              Ver plano (abajo)
             </Button>
           </>
         )}
@@ -6081,6 +6129,174 @@ function App() {
 
   // Zoom inicial por props (sin hooks del store interno)
 
+  if (appEntry === 'home') {
+    return (
+      <Box
+        className={isDarkMode ? 'ch-dark' : ''}
+        minH="100dvh"
+        bg={appBg}
+        display="flex"
+        alignItems="center"
+        justifyContent="center"
+        px={4}
+      >
+        <Stack spacing={8} maxW="md" w="100%" align="stretch">
+          <Text textAlign="center" fontSize="sm" color={listCardMeta}>
+            Elegí qué aplicación querés usar
+          </Text>
+          <Button size="lg" h="auto" py={7} colorScheme="blue" onClick={enterHidraulico}>
+            Control hidráulico
+          </Button>
+          <Button size="lg" h="auto" py={7} colorScheme="blue" onClick={enterPiletasApp}>
+            Control piletas
+          </Button>
+          <Flex justify="center" pt={2}>
+            <Button
+              size="sm"
+              variant="ghost"
+              colorScheme={isDarkMode ? 'yellow' : 'gray'}
+              onClick={() => setIsDarkMode((p) => !p)}
+              aria-label={isDarkMode ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+            >
+              ☀️🌙 Modo {isDarkMode ? 'claro' : 'oscuro'}
+            </Button>
+          </Flex>
+        </Stack>
+      </Box>
+    )
+  }
+
+  if (appEntry === 'piletas') {
+    if (isMobile) {
+      return (
+        <Box className={isDarkMode ? 'ch-dark' : ''} w="100vw" h="100dvh" bg={appBg}>
+          <Box ref={diagramAreaRef} w="100%" h="100%" minH="100dvh" position="relative">
+            <div
+              style={{
+                position: 'absolute',
+                top: 'max(20px, calc(env(safe-area-inset-top, 0px) + 12px))',
+                right: 'max(24px, calc(env(safe-area-inset-right, 0px) + 16px))',
+                zIndex: 10,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8
+              }}
+            >
+              <Button
+                size="xs"
+                minW="32px"
+                h="32px"
+                px={0}
+                borderRadius="10px"
+                variant="outline"
+                colorScheme="blue"
+                onClick={goHome}
+                aria-label="Volver al inicio"
+                title="Inicio"
+              >
+                🏠
+              </Button>
+              <Button
+                size="xs"
+                minW="32px"
+                h="32px"
+                px={0}
+                borderRadius="10px"
+                variant="outline"
+                colorScheme={isDarkMode ? 'yellow' : 'gray'}
+                onClick={() => setIsDarkMode((prev) => !prev)}
+                aria-label={isDarkMode ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+              >
+                ☀️🌙
+              </Button>
+              <div
+                style={{
+                  background: '#FEEBC8',
+                  border: '1px solid #F6AD55',
+                  borderRadius: 999,
+                  padding: '6px 12px',
+                  fontSize: 14,
+                  fontWeight: 600,
+                  color: '#7B341E',
+                  boxShadow: '0 1px 3px rgba(0, 0, 0, 0.12)',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                      Control piletas
+              </div>
+            </div>
+            {controlPiletasMobileOverlay}
+            {controlPiletasDetailModal}
+            {controlPiletasMapModal}
+          </Box>
+        </Box>
+      )
+    }
+    return (
+      <Box className={isDarkMode ? 'ch-dark' : ''} minH="100dvh" bg={appBg} py={{ base: 2, md: 6 }}>
+        <Container maxW={{ base: 'full', lg: '7xl' }} px={{ base: 2, md: 4 }}>
+          <Flex mb={3} justify="flex-end" align="center" flexWrap="wrap" gap={3}>
+            <HStack spacing={2}>
+              <Button
+                size="xs"
+                minW="32px"
+                h="32px"
+                px={0}
+                borderRadius="10px"
+                variant="outline"
+                colorScheme="blue"
+                onClick={goHome}
+                aria-label="Volver al inicio"
+                title="Inicio"
+              >
+                🏠
+              </Button>
+              <Button
+                size="xs"
+                minW="32px"
+                h="32px"
+                px={0}
+                borderRadius="10px"
+                variant="outline"
+                colorScheme={isDarkMode ? 'yellow' : 'gray'}
+                onClick={() => setIsDarkMode((prev) => !prev)}
+                aria-label={isDarkMode ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+              >
+                ☀️🌙
+              </Button>
+              <Box
+                px={3}
+                py={1.5}
+                borderRadius="full"
+                bg={isDarkMode ? '#78350F' : '#FFEDD5'}
+                borderWidth="1px"
+                borderColor={isDarkMode ? '#D97706' : '#F6AD55'}
+                fontSize="sm"
+                fontWeight="semibold"
+                color={isDarkMode ? '#FEF3C7' : '#7B341E'}
+              >
+                Control piletas
+              </Box>
+            </HStack>
+          </Flex>
+          <Box
+            position="relative"
+            minH={{ base: '78vh', md: '85vh' }}
+            bg={panelBg}
+            borderWidth="1px"
+            borderColor={panelBorder}
+            borderRadius="lg"
+            overflow="hidden"
+          >
+            {controlPiletasDesktopList}
+          </Box>
+          {controlPiletasDetailModal}
+          {controlPiletasMapModal}
+        </Container>
+      </Box>
+    )
+  }
+
   if (isMobile) {
   return (
       <Box className={isDarkMode ? 'ch-dark' : ''} w="100vw" h="100dvh" bg={appBg}>
@@ -6106,14 +6322,14 @@ function App() {
               <div className="menu-dropdown">
                 {menuLevel === 'group' && (
                   <>
-                    {SYSTEM_GROUPS.map((group) => (
+                    {SYSTEM_GROUPS_HIDRAULICO.map((group) => (
                       <button
                         key={group.id}
                         type="button"
                         className={`menu-item${currentGroup === group.id ? ' active' : ''}`}
                         onClick={() => {
                           setCurrentGroup(group.id)
-                          if (group.id === 'control' || group.id === 'servicios' || group.id === 'controlPiletas') {
+                          if (group.id === 'control' || group.id === 'servicios') {
                             setMenuOpen(false)
                           } else {
                             setMenuLevel('system')
@@ -6195,6 +6411,20 @@ function App() {
               gap: 8
             }}
           >
+            <Button
+              size="xs"
+              minW="32px"
+              h="32px"
+              px={0}
+              borderRadius="10px"
+              variant="outline"
+              colorScheme="blue"
+              onClick={goHome}
+              aria-label="Volver al inicio"
+              title="Inicio"
+            >
+              🏠
+            </Button>
             <Button
               size="xs"
               minW="32px"
@@ -6428,12 +6658,6 @@ function App() {
                 </ModalFooter>
               </ModalContent>
             </Modal>
-            </>
-          ) : currentGroup === 'controlPiletas' ? (
-            <>
-              {controlPiletasMobileOverlay}
-              {controlPiletasDetailModal}
-              {controlPiletasMapModal}
             </>
           ) : currentGroup === 'control' ? (
             <Box pt={1} px={3} pb={4} overflowY="auto" h="100%" position="absolute" inset={0} top={32} bg={listOverlayBg}>
@@ -7225,14 +7449,14 @@ function App() {
                 <div className="menu-dropdown">
                   {menuLevel === 'group' && (
                     <>
-                      {SYSTEM_GROUPS.map((group) => (
+                      {SYSTEM_GROUPS_HIDRAULICO.map((group) => (
                         <button
                           key={group.id}
                           type="button"
                           className={`menu-item${currentGroup === group.id ? ' active' : ''}`}
                           onClick={() => {
                             setCurrentGroup(group.id)
-                            if (group.id === 'control' || group.id === 'servicios' || group.id === 'controlPiletas') {
+                            if (group.id === 'control' || group.id === 'servicios') {
                               setMenuOpen(false)
                             } else {
                               setMenuLevel('system')
@@ -7314,6 +7538,20 @@ function App() {
                 gap: 8
               }}
             >
+              <Button
+                size="xs"
+                minW="32px"
+                h="32px"
+                px={0}
+                borderRadius="10px"
+                variant="outline"
+                colorScheme="blue"
+                onClick={goHome}
+                aria-label="Volver al inicio"
+                title="Inicio"
+              >
+                🏠
+              </Button>
               <Button
                 size="xs"
                 minW="32px"
@@ -7535,12 +7773,6 @@ function App() {
                 </ModalFooter>
               </ModalContent>
             </Modal>
-            </>
-            ) : currentGroup === 'controlPiletas' ? (
-            <>
-              {controlPiletasDesktopList}
-              {controlPiletasDetailModal}
-              {controlPiletasMapModal}
             </>
             ) : currentGroup === 'control' ? (
             <Box pt={1} px={3} pb={4} overflowY="auto" h="100%" position="absolute" inset={0} top={32} bg={listOverlayBg}>
