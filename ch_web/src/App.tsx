@@ -5909,8 +5909,8 @@ function App() {
     )
   }
 
-  const controlPiletasToolbar = (
-    <Stack spacing={2}>
+  const renderControlPiletasToolbar = (rowGap: number) => (
+    <Stack spacing={rowGap}>
       <HStack spacing={2} flexWrap="wrap" align="center">
         <Button
           size="sm"
@@ -5979,6 +5979,9 @@ function App() {
       </HStack>
     </Stack>
   )
+
+  const controlPiletasToolbar = renderControlPiletasToolbar(2)
+  const controlPiletasDesktopToolbar = renderControlPiletasToolbar(1)
 
   const controlPiletasListRows = (
     <Stack spacing={1}>
@@ -6059,7 +6062,7 @@ function App() {
   const controlPiletasDesktopList = (
     <Box
       position="absolute"
-      top={32}
+      top={0}
       left={0}
       right={0}
       bottom={0}
@@ -6068,8 +6071,8 @@ function App() {
       minH={0}
       overflow="hidden"
     >
-      <Box flexShrink={0} px={3} pt={1} pb={3} borderBottomWidth="1px" borderColor={listCardBorder}>
-        {controlPiletasToolbar}
+      <Box flexShrink={0} px={3} py={2} borderBottomWidth="1px" borderColor={listCardBorder}>
+        {controlPiletasDesktopToolbar}
       </Box>
       <Box
         flex={1}
@@ -6077,7 +6080,7 @@ function App() {
         overflowY="auto"
         overflowX="hidden"
         px={3}
-        pt={3}
+        pt={2}
         pb={12}
         style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }}
       >
@@ -6333,7 +6336,7 @@ function App() {
   const serviciosStandaloneDesktopPanel = (
     <Box
       position="absolute"
-      top={32}
+      top={0}
       left={0}
       right={0}
       bottom={0}
@@ -6342,8 +6345,8 @@ function App() {
       minH={0}
       overflow="hidden"
     >
-      <Box flexShrink={0} px={3} pt={1} pb={3} borderBottomWidth="1px" borderColor={listCardBorder}>
-        <HStack spacing={2} flexWrap="wrap" align="center">
+      <Box flexShrink={0} px={3} py={2} borderBottomWidth="1px" borderColor={listCardBorder}>
+        <HStack spacing={1.5} flexWrap="wrap" align="center">
           <Button
             size="sm"
             variant={serviciosGroupFilter === 'gruta' ? 'solid' : 'outline'}
@@ -6367,7 +6370,7 @@ function App() {
             onChange={(e) => setServiciosQuery(e.target.value)}
             maxW="260px"
             flex={1}
-            minW="160px"
+            minW="140px"
             bg={listInputBg}
             borderColor={listInputBorder}
             color={isDarkMode ? 'gray.100' : 'gray.800'}
@@ -6381,7 +6384,7 @@ function App() {
         overflowY="auto"
         overflowX="hidden"
         px={3}
-        pt={3}
+        pt={2}
         pb={12}
         style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }}
       >
