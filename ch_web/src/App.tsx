@@ -4177,6 +4177,9 @@ function App() {
     return 'home'
   })
   const [menuLevel, setMenuLevel] = useState<'group' | 'system'>('group')
+  /** Lista intermedia Gruta/Parque antes de abrir el diagrama (null = no mostrar lista). */
+  const [hidraulicoSystemListGroup, setHidraulicoSystemListGroup] = useState<null | 'gruta' | 'parque' | 'pozos'>(null)
+  const [hidraulicoSystemsQuery, setHidraulicoSystemsQuery] = useState('')
   const [controlIssues, setControlIssues] = useState<
     Array<{ key: string; summary?: string; status?: string; issueType?: string; epicKey?: string; epicSummary?: string; sector?: string }>
   >([])
@@ -4249,14 +4252,6 @@ function App() {
   }
 
   const currentSystemLabel = SYSTEMS.find((sys) => sys.id === currentSystem)?.label ?? 'Sistema'
-  const displayLabel =
-    currentGroup === 'control'
-      ? 'Control'
-      : currentGroup === 'controlPiletas'
-        ? 'Control piletas'
-        : currentGroup === 'servicios'
-          ? 'Servicios'
-          : currentSystemLabel
   const appBg = isDarkMode ? '#111827' : '#F7FAFC'
   const panelBg = isDarkMode ? '#1F2937' : '#FFFFFF'
   const panelBorder = isDarkMode ? '#374151' : '#E2E8F0'
@@ -4357,6 +4352,16 @@ function App() {
   }, [servicesListGrouped])
 
   const currentGroupLabel = SYSTEM_GROUPS.find((group) => group.id === currentGroup)?.label ?? 'Grupo'
+  const displayLabel =
+    currentGroup === 'control'
+      ? 'Control'
+      : currentGroup === 'controlPiletas'
+        ? 'Control piletas'
+        : currentGroup === 'servicios'
+          ? 'Servicios'
+          : hidraulicoSystemListGroup != null
+            ? currentGroupLabel
+            : currentSystemLabel
   const systemsForGroup = SYSTEMS.filter((sys) => sys.group === currentGroup)
   const sala4Systems =
     currentGroup === 'parque' ? systemsForGroup.filter((sys) => sys.subgroup === 'sala4') : []
@@ -4942,6 +4947,7 @@ function App() {
     setCurrentSystem(systemId)
     setMenuOpen(false)
     setMenuLevel('group')
+    setHidraulicoSystemListGroup(null)
   }
 
   const fetchPumpsBatch = useCallback(async (): Promise<Record<string, string | null>> => {
@@ -5346,12 +5352,15 @@ function App() {
     setAppEntry('home')
     setMenuOpen(false)
     setMenuLevel('group')
+    setHidraulicoSystemListGroup(null)
   }, [])
 
   const enterHidraulico = useCallback(() => {
     setAppEntry('hidraulico')
     setMenuOpen(false)
     setMenuLevel('group')
+    setCurrentGroup('gruta')
+    setHidraulicoSystemListGroup('gruta')
   }, [])
 
   const enterPiletasApp = useCallback(() => {
@@ -5383,6 +5392,10 @@ function App() {
       setCurrentGroup((g) => (g === 'controlPiletas' || g === 'servicios' ? 'gruta' : g))
     }
   }, [appEntry])
+
+  useEffect(() => {
+    if (hidraulicoSystemListGroup) setHidraulicoSystemsQuery('')
+  }, [hidraulicoSystemListGroup])
 
   const openControlPiletasModal = useCallback((row: ControlPiletasRow) => {
     setControlPiletasModalItem(row)
@@ -5897,7 +5910,7 @@ function App() {
   }
 
   const controlPiletasToolbar = (
-    <Stack spacing={2} mb={3}>
+    <Stack spacing={2}>
       <HStack spacing={2} flexWrap="wrap" align="center">
         <Button
           size="sm"
@@ -6009,10 +6022,12 @@ function App() {
       bg={listOverlayBg}
       display="flex"
       flexDirection="column"
+      minH={0}
+      overflow="hidden"
       pt="max(76px, calc(env(safe-area-inset-top, 0px) + 60px))"
       style={{ touchAction: 'pan-y' }}
     >
-      <Box px={3} pb={2} flexShrink={0}>
+      <Box px={3} pt={1} pb={3} flexShrink={0} borderBottomWidth="1px" borderColor={listCardBorder}>
         {controlPiletasToolbar}
       </Box>
       <Box
@@ -6023,6 +6038,7 @@ function App() {
         px={3}
         pb="max(32px, env(safe-area-inset-bottom, 0px))"
         style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }}
+        pt={3}
       >
         {controlPiletasLoading ? (
           <Flex justify="center" align="center" h="50%">
@@ -6042,32 +6058,42 @@ function App() {
 
   const controlPiletasDesktopList = (
     <Box
-      pt={1}
-      px={3}
-      pb={12}
-      overflowY="auto"
-      overflowX="hidden"
       position="absolute"
       top={32}
       left={0}
       right={0}
       bottom={0}
+      display="flex"
+      flexDirection="column"
       minH={0}
-      style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }}
+      overflow="hidden"
     >
-      {controlPiletasToolbar}
-      {controlPiletasLoading ? (
-        <Flex justify="center" align="center" h="50%">
-          <Spinner size="lg" color="gray.300" />
-        </Flex>
-      ) : controlPiletasFiltered.length === 0 ? (
-        <Text fontSize="sm" color={listCardMeta}>No hay piletas en este grupo.</Text>
-      ) : (
-        <Stack spacing={4}>
-          {controlPiletasListRows}
-          <Box minH="120px" aria-hidden />
-        </Stack>
-      )}
+      <Box flexShrink={0} px={3} pt={1} pb={3} borderBottomWidth="1px" borderColor={listCardBorder}>
+        {controlPiletasToolbar}
+      </Box>
+      <Box
+        flex={1}
+        minH={0}
+        overflowY="auto"
+        overflowX="hidden"
+        px={3}
+        pt={3}
+        pb={12}
+        style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }}
+      >
+        {controlPiletasLoading ? (
+          <Flex justify="center" align="center" h="50%">
+            <Spinner size="lg" color="gray.300" />
+          </Flex>
+        ) : controlPiletasFiltered.length === 0 ? (
+          <Text fontSize="sm" color={listCardMeta}>No hay piletas en este grupo.</Text>
+        ) : (
+          <Stack spacing={4}>
+            {controlPiletasListRows}
+            <Box minH="120px" aria-hidden />
+          </Stack>
+        )}
+      </Box>
     </Box>
   )
 
@@ -6185,11 +6211,13 @@ function App() {
       bg={listOverlayBg}
       display="flex"
       flexDirection="column"
+      minH={0}
+      overflow="hidden"
       pt="max(76px, calc(env(safe-area-inset-top, 0px) + 60px))"
       style={{ touchAction: 'pan-y' }}
     >
-      <Box px={3} pb={2} flexShrink={0}>
-        <HStack mb={3} spacing={2} flexWrap="wrap" align="center">
+      <Box px={3} pt={1} pb={3} flexShrink={0} borderBottomWidth="1px" borderColor={listCardBorder}>
+        <HStack spacing={2} flexWrap="wrap" align="center">
           <Button
             size="sm"
             variant={serviciosGroupFilter === 'gruta' ? 'solid' : 'outline'}
@@ -6227,6 +6255,7 @@ function App() {
         overflowY="auto"
         overflowX="hidden"
         px={3}
+        pt={3}
         pb="max(32px, env(safe-area-inset-bottom, 0px))"
         style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }}
       >
@@ -6303,117 +6332,127 @@ function App() {
 
   const serviciosStandaloneDesktopPanel = (
     <Box
-      pt={1}
-      px={3}
-      pb={12}
-      overflowY="auto"
-      overflowX="hidden"
       position="absolute"
       top={32}
       left={0}
       right={0}
       bottom={0}
+      display="flex"
+      flexDirection="column"
       minH={0}
-      style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }}
+      overflow="hidden"
     >
-      <HStack mb={3} spacing={2} flexWrap="wrap" align="center">
-        <Button
-          size="sm"
-          variant={serviciosGroupFilter === 'gruta' ? 'solid' : 'outline'}
-          colorScheme="blue"
-          onClick={() => setServiciosGroupFilter('gruta')}
-        >
-          Gruta
-        </Button>
-        <Button
-          size="sm"
-          variant={serviciosGroupFilter === 'parque' ? 'solid' : 'outline'}
-          colorScheme="blue"
-          onClick={() => setServiciosGroupFilter('parque')}
-        >
-          Parque
-        </Button>
-        <Input
-          size="sm"
-          placeholder="Buscar por nombre..."
-          value={serviciosQuery}
-          onChange={(e) => setServiciosQuery(e.target.value)}
-          maxW="260px"
-          flex={1}
-          minW="160px"
-          bg={listInputBg}
-          borderColor={listInputBorder}
-          color={isDarkMode ? 'gray.100' : 'gray.800'}
-          _placeholder={{ color: isDarkMode ? 'gray.400' : 'gray.500' }}
-        />
-      </HStack>
-      {serviceIssuesLoading ? (
-        <Flex justify="center" align="center" h="50%">
-          <Spinner size="lg" color="gray.300" />
-        </Flex>
-      ) : (
-        <Stack spacing={6}>
-          {Object.entries(servicesListGrouped)
-            .filter(([groupLabel]) => (serviciosGroupFilter === 'gruta' && groupLabel === 'Gruta') || (serviciosGroupFilter === 'parque' && groupLabel === 'Parque'))
-            .map(([groupLabel, bySystem]) => (
-              <Box key={groupLabel}>
-                <Heading size="sm" mb={3} color={listHeadingColor}>
-                  {groupLabel}
-                </Heading>
-                {Object.entries(bySystem)
-                  .map(([systemLabel, services]) => {
-                    const filtered = services.filter((s) => {
-                      if (!serviciosQuery.trim()) return true
-                      const text = (s.issueKey && serviceIssuesData[s.issueKey]?.summary) || s.label || s.id
-                      return normalizeForSearch(text).includes(normalizeForSearch(serviciosQuery.trim()))
+      <Box flexShrink={0} px={3} pt={1} pb={3} borderBottomWidth="1px" borderColor={listCardBorder}>
+        <HStack spacing={2} flexWrap="wrap" align="center">
+          <Button
+            size="sm"
+            variant={serviciosGroupFilter === 'gruta' ? 'solid' : 'outline'}
+            colorScheme="blue"
+            onClick={() => setServiciosGroupFilter('gruta')}
+          >
+            Gruta
+          </Button>
+          <Button
+            size="sm"
+            variant={serviciosGroupFilter === 'parque' ? 'solid' : 'outline'}
+            colorScheme="blue"
+            onClick={() => setServiciosGroupFilter('parque')}
+          >
+            Parque
+          </Button>
+          <Input
+            size="sm"
+            placeholder="Buscar por nombre..."
+            value={serviciosQuery}
+            onChange={(e) => setServiciosQuery(e.target.value)}
+            maxW="260px"
+            flex={1}
+            minW="160px"
+            bg={listInputBg}
+            borderColor={listInputBorder}
+            color={isDarkMode ? 'gray.100' : 'gray.800'}
+            _placeholder={{ color: isDarkMode ? 'gray.400' : 'gray.500' }}
+          />
+        </HStack>
+      </Box>
+      <Box
+        flex={1}
+        minH={0}
+        overflowY="auto"
+        overflowX="hidden"
+        px={3}
+        pt={3}
+        pb={12}
+        style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }}
+      >
+        {serviceIssuesLoading ? (
+          <Flex justify="center" align="center" h="50%">
+            <Spinner size="lg" color="gray.300" />
+          </Flex>
+        ) : (
+          <Stack spacing={6}>
+            {Object.entries(servicesListGrouped)
+              .filter(([groupLabel]) => (serviciosGroupFilter === 'gruta' && groupLabel === 'Gruta') || (serviciosGroupFilter === 'parque' && groupLabel === 'Parque'))
+              .map(([groupLabel, bySystem]) => (
+                <Box key={groupLabel}>
+                  <Heading size="sm" mb={3} color={listHeadingColor}>
+                    {groupLabel}
+                  </Heading>
+                  {Object.entries(bySystem)
+                    .map(([systemLabel, services]) => {
+                      const filtered = services.filter((s) => {
+                        if (!serviciosQuery.trim()) return true
+                        const text = (s.issueKey && serviceIssuesData[s.issueKey]?.summary) || s.label || s.id
+                        return normalizeForSearch(text).includes(normalizeForSearch(serviciosQuery.trim()))
+                      })
+                      return [systemLabel, filtered] as const
                     })
-                    return [systemLabel, filtered] as const
-                  })
-                  .filter(([, filtered]) => filtered.length > 0)
-                  .map(([systemLabel, services]) => (
-                    <Box key={systemLabel} mb={4}>
-                      <Text fontSize="sm" fontWeight="bold" color={listHeadingColor} mb={2}>
-                        {systemLabel}
-                      </Text>
-                      <Stack spacing={1}>
-                        {services.map((s) => (
-                          <Box
-                            key={s.id}
-                            py={2}
-                            px={3}
-                            bg={listCardBg}
-                            borderRadius="md"
-                            borderWidth="1px"
-                            borderColor={listCardBorder}
-                            cursor={s.issueKey ? 'pointer' : undefined}
-                            onClick={s.issueKey ? () => openServiciosModal(s) : undefined}
-                            _hover={s.issueKey ? { bg: listCardHoverBg } : undefined}
-                          >
-                            <HStack justify="space-between" flexWrap="wrap" gap={2}>
-                              <Text fontSize="sm" fontWeight="medium" color={listCardText}>
-                                {(s.issueKey && serviceIssuesData[s.issueKey]?.summary) || s.label || s.id}
-                              </Text>
-                              {s.issueKey && serviceIssuesData[s.issueKey]?.status != null ? (
-                                transitionBadge(serviceIssuesData[s.issueKey].status!)
-                              ) : s.issueKey ? (
-                                <Badge colorScheme="gray">Cargando…</Badge>
-                              ) : null}
-                            </HStack>
-                            {s.issueKey && (
-                              <Text fontSize="xs" color={listCardMeta} mt={1}>
-                                {s.issueKey}
-                              </Text>
-                            )}
-                          </Box>
-                        ))}
-                      </Stack>
-                    </Box>
-                  ))}
-              </Box>
-            ))}
-          <Box minH="120px" aria-hidden />
-        </Stack>
-      )}
+                    .filter(([, filtered]) => filtered.length > 0)
+                    .map(([systemLabel, services]) => (
+                      <Box key={systemLabel} mb={4}>
+                        <Text fontSize="sm" fontWeight="bold" color={listHeadingColor} mb={2}>
+                          {systemLabel}
+                        </Text>
+                        <Stack spacing={1}>
+                          {services.map((s) => (
+                            <Box
+                              key={s.id}
+                              py={2}
+                              px={3}
+                              bg={listCardBg}
+                              borderRadius="md"
+                              borderWidth="1px"
+                              borderColor={listCardBorder}
+                              cursor={s.issueKey ? 'pointer' : undefined}
+                              onClick={s.issueKey ? () => openServiciosModal(s) : undefined}
+                              _hover={s.issueKey ? { bg: listCardHoverBg } : undefined}
+                            >
+                              <HStack justify="space-between" flexWrap="wrap" gap={2}>
+                                <Text fontSize="sm" fontWeight="medium" color={listCardText}>
+                                  {(s.issueKey && serviceIssuesData[s.issueKey]?.summary) || s.label || s.id}
+                                </Text>
+                                {s.issueKey && serviceIssuesData[s.issueKey]?.status != null ? (
+                                  transitionBadge(serviceIssuesData[s.issueKey].status!)
+                                ) : s.issueKey ? (
+                                  <Badge colorScheme="gray">Cargando…</Badge>
+                                ) : null}
+                              </HStack>
+                              {s.issueKey && (
+                                <Text fontSize="xs" color={listCardMeta} mt={1}>
+                                  {s.issueKey}
+                                </Text>
+                              )}
+                            </Box>
+                          ))}
+                        </Stack>
+                      </Box>
+                    ))}
+                </Box>
+              ))}
+            <Box minH="120px" aria-hidden />
+          </Stack>
+        )}
+      </Box>
     </Box>
   )
 
@@ -6503,6 +6542,138 @@ function App() {
   const currentWaterField = formatWaterFieldValue(transitionNode?.data?.customfield_11815)
   const isPuestoModal = isPuestoNode(transitionNode)
   const activePump = pumpOptions.find((option) => option.key === pumpActiveKey)
+
+  const hidraulicoQueryNorm = normalizeForSearch(hidraulicoSystemsQuery.trim())
+  const hidraulicoLabelMatches = (label: string) =>
+    !hidraulicoQueryNorm || normalizeForSearch(label).includes(hidraulicoQueryNorm)
+  const regularForList = regularSystems.filter((s) => hidraulicoLabelMatches(s.label))
+  const sala4ForList = sala4Systems.filter((s) => hidraulicoLabelMatches(s.label))
+  const sala5ForList = sala5Systems.filter((s) => hidraulicoLabelMatches(s.label))
+  const hidraulicoListHasRows = regularForList.length > 0 || sala4ForList.length > 0 || sala5ForList.length > 0
+
+  /** Espacio bajo el botón hamburguesa (.system-menu top + 44px alto) para que el título no quede encima. */
+  const hidraulicoListHeaderPadTop = 'calc(max(20px, env(safe-area-inset-top, 0px) + 12px) + 52px)'
+
+  const hidraulicoSystemsListPanel = (
+    <Box display="flex" flexDirection="column" h="100%" minH={0} bg={listOverlayBg}>
+      <Box px={3} pt={hidraulicoListHeaderPadTop} pb={2} flexShrink={0} borderBottomWidth="1px" borderColor={listCardBorder}>
+        <Heading size="sm" mb={currentGroup === 'pozos' ? 0 : 2} color={listHeadingColor}>
+          {currentGroup === 'pozos' ? 'Pozos' : 'Sistemas'}
+        </Heading>
+        {currentGroup !== 'pozos' && (
+          <Input
+            size="sm"
+            placeholder="Buscar sistema…"
+            value={hidraulicoSystemsQuery}
+            onChange={(e) => setHidraulicoSystemsQuery(e.target.value)}
+            bg={listInputBg}
+            borderColor={listInputBorder}
+            color={isDarkMode ? 'gray.100' : 'gray.800'}
+            _placeholder={{ color: isDarkMode ? 'gray.400' : 'gray.500' }}
+          />
+        )}
+      </Box>
+      <Box
+        flex={1}
+        minH={0}
+        overflowY="auto"
+        px={3}
+        py={3}
+        pb="max(24px, env(safe-area-inset-bottom, 0px))"
+        style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }}
+      >
+        {!hidraulicoListHasRows ? (
+          <Text fontSize="sm" color={listCardMeta}>
+            {hidraulicoSystemsQuery.trim() ? 'Ningún sistema coincide con la búsqueda.' : 'No hay sistemas en este grupo.'}
+          </Text>
+        ) : (
+          <Stack spacing={4}>
+            {currentGroup === 'parque' && regularForList.length > 0 && (sala4Systems.length > 0 || sala5Systems.length > 0) && (
+              <Text fontSize="xs" fontWeight="semibold" color={listCardMeta} textTransform="uppercase" letterSpacing="wide">
+                Resto de sistemas
+              </Text>
+            )}
+            {regularForList.length > 0 && (
+              <Stack spacing={2}>
+                {regularForList.map((sys) => (
+                  <Box
+                    key={sys.id}
+                    py={2}
+                    px={3}
+                    bg={listCardBg}
+                    borderRadius="md"
+                    borderWidth="1px"
+                    borderColor={listCardBorder}
+                    cursor="pointer"
+                    onClick={() => handleSelectSystem(sys.id)}
+                    _hover={{ bg: listCardHoverBg }}
+                  >
+                    <Text fontSize="sm" fontWeight="medium" color={listCardText}>
+                      {sys.label}
+                    </Text>
+                  </Box>
+                ))}
+              </Stack>
+            )}
+            {sala4ForList.length > 0 && (
+              <Box>
+                <Text fontSize="xs" fontWeight="semibold" color={listCardMeta} mb={2} textTransform="uppercase" letterSpacing="wide">
+                  Sistemas Sala 4
+                </Text>
+                <Stack spacing={2}>
+                  {sala4ForList.map((sys) => (
+                    <Box
+                      key={sys.id}
+                      py={2}
+                      px={3}
+                      bg={listCardBg}
+                      borderRadius="md"
+                      borderWidth="1px"
+                      borderColor={listCardBorder}
+                      cursor="pointer"
+                      onClick={() => handleSelectSystem(sys.id)}
+                      _hover={{ bg: listCardHoverBg }}
+                    >
+                      <Text fontSize="sm" fontWeight="medium" color={listCardText}>
+                        {sys.label}
+                      </Text>
+                    </Box>
+                  ))}
+                </Stack>
+              </Box>
+            )}
+            {sala5ForList.length > 0 && (
+              <Box>
+                <Text fontSize="xs" fontWeight="semibold" color={listCardMeta} mb={2} textTransform="uppercase" letterSpacing="wide">
+                  Sistemas Sala 5
+                </Text>
+                <Stack spacing={2}>
+                  {sala5ForList.map((sys) => (
+                    <Box
+                      key={sys.id}
+                      py={2}
+                      px={3}
+                      bg={listCardBg}
+                      borderRadius="md"
+                      borderWidth="1px"
+                      borderColor={listCardBorder}
+                      cursor="pointer"
+                      onClick={() => handleSelectSystem(sys.id)}
+                      _hover={{ bg: listCardHoverBg }}
+                    >
+                      <Text fontSize="sm" fontWeight="medium" color={listCardText}>
+                        {sys.label}
+                      </Text>
+                    </Box>
+                  ))}
+                </Stack>
+              </Box>
+            )}
+          </Stack>
+        )}
+      </Box>
+    </Box>
+  )
 
   // Zoom inicial por props (sin hooks del store interno)
 
@@ -6839,8 +7010,14 @@ function App() {
                         onClick={() => {
                           setCurrentGroup(group.id)
                           if (group.id === 'control') {
+                            setHidraulicoSystemListGroup(null)
                             setMenuOpen(false)
+                          } else if (group.id === 'gruta' || group.id === 'parque' || group.id === 'pozos') {
+                            setHidraulicoSystemListGroup(group.id)
+                            setMenuOpen(false)
+                            setMenuLevel('group')
                           } else {
+                            setHidraulicoSystemListGroup(null)
                             setMenuLevel('system')
                           }
                         }}
@@ -6914,7 +7091,7 @@ function App() {
               position: 'absolute',
               top: 'max(20px, calc(env(safe-area-inset-top, 0px) + 12px))',
               right: 'max(24px, calc(env(safe-area-inset-right, 0px) + 16px))',
-              zIndex: 10,
+              zIndex: 20,
               display: 'flex',
               alignItems: 'center',
               gap: 8
@@ -7421,6 +7598,20 @@ function App() {
           </Box>
           </>
           )}
+          {hidraulicoSystemListGroup != null && (
+            <Box
+              position="absolute"
+              inset={0}
+              zIndex={15}
+              bg={listOverlayBg}
+              overflow="hidden"
+              display="flex"
+              flexDirection="column"
+              style={{ touchAction: 'pan-y' }}
+            >
+              {hidraulicoSystemsListPanel}
+            </Box>
+          )}
         </Box>
       </Box>
     )
@@ -7761,8 +7952,14 @@ function App() {
                           onClick={() => {
                             setCurrentGroup(group.id)
                             if (group.id === 'control') {
+                              setHidraulicoSystemListGroup(null)
                               setMenuOpen(false)
+                            } else if (group.id === 'gruta' || group.id === 'parque' || group.id === 'pozos') {
+                              setHidraulicoSystemListGroup(group.id)
+                              setMenuOpen(false)
+                              setMenuLevel('group')
                             } else {
+                              setHidraulicoSystemListGroup(null)
                               setMenuLevel('system')
                             }
                           }}
@@ -7836,7 +8033,7 @@ function App() {
                 position: 'absolute',
                 top: 'max(20px, calc(env(safe-area-inset-top, 0px) + 12px))',
                 right: 'max(24px, calc(env(safe-area-inset-right, 0px) + 16px))',
-                zIndex: 10,
+                zIndex: 20,
                 display: 'flex',
                 alignItems: 'center',
                 gap: 8
@@ -8077,6 +8274,19 @@ function App() {
                 </Box>
               )}
             </Box>
+            )}
+            {hidraulicoSystemListGroup != null && (
+              <Box
+                position="absolute"
+                inset={0}
+                zIndex={15}
+                bg={listOverlayBg}
+                overflow="hidden"
+                display="flex"
+                flexDirection="column"
+              >
+                {hidraulicoSystemsListPanel}
+              </Box>
             )}
           </Box>
         </Flex>
