@@ -517,9 +517,6 @@ app.get('/api/issues/:key/control-piletas-detail', async (req, res) => {
     const issue = issueRes.data
     const plain = latest?.plain || ''
     const parsed = parseScriptRunnerFields(plain)
-    const fechaUltima = latest?.created
-      ? new Date(latest.created).toLocaleString('es-AR', { dateStyle: 'long', timeStyle: 'short' })
-      : ''
     res.json({
       key,
       summary: issue.fields?.summary,
@@ -527,7 +524,6 @@ app.get('/api/issues/:key/control-piletas-detail', async (req, res) => {
       updated: issue.fields?.updated,
       scriptRunner: latest
         ? {
-            fechaUltimaActualizacion: fechaUltima,
             fechaIso: latest.created,
             usuario: parsed.usuario,
             epic: parsed.epic,

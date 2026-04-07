@@ -47,7 +47,6 @@ type ControlPiletasDetailApi = {
   status?: string
   updated?: string
   scriptRunner: {
-    fechaUltimaActualizacion: string
     fechaIso: string | null
     usuario: string
     epic: string
@@ -77,6 +76,14 @@ function formatTiempoRelativoDesde(iso?: string): string {
   if (d < 21) return `hace ${d} día${d !== 1 ? 's' : ''}`
   const w = Math.floor(d / 7)
   return `hace ${w} sem.`
+}
+
+/** Fecha legible en la zona horaria del navegador (evita desfase vs servidor en UTC/Docker). */
+function formatFechaHoraLocal(iso?: string | null): string {
+  if (!iso) return '—'
+  const t = new Date(iso).getTime()
+  if (Number.isNaN(t)) return '—'
+  return new Intl.DateTimeFormat('es-AR', { dateStyle: 'long', timeStyle: 'short' }).format(t)
 }
 const VIEW_BOUNDS: [[number, number], [number, number]] = [[-80, -80], [860, 1100]]
 const WATER_FIELD_ID = 'customfield_11815'
@@ -140,10 +147,10 @@ const SYSTEM_GROUPS = [
   { id: 'controlPiletas', label: 'Control piletas' }
 ]
 
-/** Menú hamburguesa de Control hidráulico (sin piletas; esa app tiene entrada propia desde el inicio). */
-const SYSTEM_GROUPS_HIDRAULICO = SYSTEM_GROUPS.filter((g) => g.id !== 'controlPiletas')
+/** Menú hamburguesa de Control hidráulico (piletas y servicios tienen entrada propia desde el inicio). */
+const SYSTEM_GROUPS_HIDRAULICO = SYSTEM_GROUPS.filter((g) => g.id !== 'controlPiletas' && g.id !== 'servicios')
 
-type AppEntry = 'home' | 'hidraulico' | 'piletas'
+type AppEntry = 'home' | 'hidraulico' | 'piletas' | 'servicios'
 
 /** Mapeo nodo bomba/soplador -> issueKey del puesto. Si el puesto no tiene activeKey, se oculta el ícono. */
 const PUMP_NODE_TO_PUESTO_KEY: Record<string, string> = {
@@ -4163,7 +4170,7 @@ function App() {
     try {
       if (typeof window === 'undefined') return 'home'
       const v = window.sessionStorage.getItem('ch_app_entry')
-      if (v === 'hidraulico' || v === 'piletas') return v
+      if (v === 'hidraulico' || v === 'piletas' || v === 'servicios') return v
     } catch {
       // noop
     }
@@ -5252,7 +5259,7 @@ function App() {
   }, [loadIssues])
 
   useEffect(() => {
-    if (currentGroup !== 'servicios' || serviceIssueKeys.length === 0) return
+    if ((currentGroup !== 'servicios' && appEntry !== 'servicios') || serviceIssueKeys.length === 0) return
     let cancelled = false
     setServiceIssuesLoading(true)
     const keysParam = serviceIssueKeys.join(',')
@@ -5278,7 +5285,7 @@ function App() {
         if (!cancelled) setServiceIssuesLoading(false)
       })
     return () => { cancelled = true }
-  }, [currentGroup, serviceIssueKeys])
+  }, [appEntry, currentGroup, serviceIssueKeys])
 
   useEffect(() => {
     if (currentGroup !== 'control') return
@@ -5353,6 +5360,12 @@ function App() {
     setMenuLevel('group')
   }, [])
 
+  const enterServiciosApp = useCallback(() => {
+    setAppEntry('servicios')
+    setMenuOpen(false)
+    setMenuLevel('group')
+  }, [])
+
   useEffect(() => {
     try {
       if (typeof window === 'undefined') return
@@ -5365,7 +5378,10 @@ function App() {
 
   useEffect(() => {
     if (appEntry === 'piletas') setCurrentGroup('controlPiletas')
-    else if (appEntry === 'hidraulico') setCurrentGroup((g) => (g === 'controlPiletas' ? 'gruta' : g))
+    else if (appEntry === 'servicios') setCurrentGroup('servicios')
+    else if (appEntry === 'hidraulico') {
+      setCurrentGroup((g) => (g === 'controlPiletas' || g === 'servicios' ? 'gruta' : g))
+    }
   }, [appEntry])
 
   const openControlPiletasModal = useCallback((row: ControlPiletasRow) => {
@@ -6121,16 +6137,19 @@ function App() {
                   {controlPiletasModalItem?.status ? controlPiletasStatusBadge(controlPiletasModalItem.status) : <Text fontSize="sm">—</Text>}
                   <Text fontSize="xs" color={listCardMeta}>
                     {formatTiempoRelativoDesde(
-                      controlPiletasDetail?.scriptRunner?.fechaIso ?? controlPiletasModalItem?.updated
+                      controlPiletasDetail?.updated ?? controlPiletasModalItem?.updated
                     )}
                   </Text>
                 </HStack>
               </Box>
               <Divider />
               <Box>
+                <Text fontSize="sm" mb={2} color={listCardText}>
+                  <Text as="span" fontWeight="semibold">Última modificación del ticket:</Text>{' '}
+                  {formatFechaHoraLocal(controlPiletasDetail?.updated ?? controlPiletasModalItem?.updated)}
+                </Text>
                 {controlPiletasDetail?.scriptRunner ? (
                   <Stack spacing={2} fontSize="sm">
-                    <Text color={listCardText}><Text as="span" fontWeight="semibold">Fecha última actualización:</Text> {controlPiletasDetail.scriptRunner.fechaUltimaActualizacion || '—'}</Text>
                     <Text color={listCardText}><Text as="span" fontWeight="semibold">Usuario:</Text> {controlPiletasDetail.scriptRunner.usuario || '—'}</Text>
                     <Text color={listCardText}><Text as="span" fontWeight="semibold">Epic:</Text> {controlPiletasDetail.scriptRunner.epic || '—'}</Text>
                     <Text color={listCardText}><Text as="span" fontWeight="semibold">Diaria:</Text> {controlPiletasDetail.scriptRunner.diaria || '—'}</Text>
@@ -6152,6 +6171,332 @@ function App() {
         </ModalFooter>
       </ModalContent>
     </Modal>
+  )
+
+  /** Lista Servicios + modales (misma lógica que antes en hidráulico; ahora solo app standalone o futuros usos). */
+  const serviciosStandaloneMobileOverlay = (
+    <Box
+      position="fixed"
+      top={0}
+      left={0}
+      right={0}
+      bottom={0}
+      zIndex={4}
+      bg={listOverlayBg}
+      display="flex"
+      flexDirection="column"
+      pt="max(76px, calc(env(safe-area-inset-top, 0px) + 60px))"
+      style={{ touchAction: 'pan-y' }}
+    >
+      <Box px={3} pb={2} flexShrink={0}>
+        <HStack mb={3} spacing={2} flexWrap="wrap" align="center">
+          <Button
+            size="sm"
+            variant={serviciosGroupFilter === 'gruta' ? 'solid' : 'outline'}
+            colorScheme="blue"
+            onClick={() => setServiciosGroupFilter('gruta')}
+          >
+            Gruta
+          </Button>
+          <Button
+            size="sm"
+            variant={serviciosGroupFilter === 'parque' ? 'solid' : 'outline'}
+            colorScheme="blue"
+            onClick={() => setServiciosGroupFilter('parque')}
+          >
+            Parque
+          </Button>
+          <Input
+            size="sm"
+            placeholder="Buscar por nombre..."
+            value={serviciosQuery}
+            onChange={(e) => setServiciosQuery(e.target.value)}
+            maxW={{ base: '100%', sm: '220px' }}
+            flex={1}
+            minW="140px"
+            bg={listInputBg}
+            borderColor={listInputBorder}
+            color={isDarkMode ? 'gray.100' : 'gray.800'}
+            _placeholder={{ color: isDarkMode ? 'gray.400' : 'gray.500' }}
+          />
+        </HStack>
+      </Box>
+      <Box
+        flex={1}
+        minH={0}
+        overflowY="auto"
+        overflowX="hidden"
+        px={3}
+        pb="max(32px, env(safe-area-inset-bottom, 0px))"
+        style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }}
+      >
+        {serviceIssuesLoading ? (
+          <Flex justify="center" align="center" h="50%">
+            <Spinner size="lg" color="gray.300" />
+          </Flex>
+        ) : (
+          <Stack spacing={6}>
+            {Object.entries(servicesListGrouped)
+              .filter(([groupLabel]) => (serviciosGroupFilter === 'gruta' && groupLabel === 'Gruta') || (serviciosGroupFilter === 'parque' && groupLabel === 'Parque'))
+              .map(([groupLabel, bySystem]) => (
+                <Box key={groupLabel}>
+                  <Heading size="sm" mb={3} color={listHeadingColor}>
+                    {groupLabel}
+                  </Heading>
+                  {Object.entries(bySystem)
+                    .map(([systemLabel, services]) => {
+                      const filtered = services.filter((s) => {
+                        if (!serviciosQuery.trim()) return true
+                        const text = (s.issueKey && serviceIssuesData[s.issueKey]?.summary) || s.label || s.id
+                        return normalizeForSearch(text).includes(normalizeForSearch(serviciosQuery.trim()))
+                      })
+                      return [systemLabel, filtered] as const
+                    })
+                    .filter(([, filtered]) => filtered.length > 0)
+                    .map(([systemLabel, services]) => (
+                      <Box key={systemLabel} mb={4}>
+                        <Text fontSize="sm" fontWeight="bold" color={listHeadingColor} mb={2}>
+                          {systemLabel}
+                        </Text>
+                        <Stack spacing={1}>
+                          {services.map((s) => (
+                            <Box
+                              key={s.id}
+                              py={2}
+                              px={3}
+                              bg={listCardBg}
+                              borderRadius="md"
+                              borderWidth="1px"
+                              borderColor={listCardBorder}
+                              cursor={s.issueKey ? 'pointer' : undefined}
+                              onClick={s.issueKey ? () => openServiciosModal(s) : undefined}
+                              _hover={s.issueKey ? { bg: listCardHoverBg } : undefined}
+                            >
+                              <HStack justify="space-between" flexWrap="wrap" gap={2}>
+                                <Text fontSize="sm" fontWeight="medium" color={listCardText}>
+                                  {(s.issueKey && serviceIssuesData[s.issueKey]?.summary) || s.label || s.id}
+                                </Text>
+                                {s.issueKey && serviceIssuesData[s.issueKey]?.status != null ? (
+                                  transitionBadge(serviceIssuesData[s.issueKey].status!)
+                                ) : s.issueKey ? (
+                                  <Badge colorScheme="gray">Cargando…</Badge>
+                                ) : null}
+                              </HStack>
+                              {s.issueKey && (
+                                <Text fontSize="xs" color={listCardMeta} mt={1}>
+                                  {s.issueKey}
+                                </Text>
+                              )}
+                            </Box>
+                          ))}
+                        </Stack>
+                      </Box>
+                    ))}
+                </Box>
+              ))}
+            <Box minH="40px" aria-hidden />
+          </Stack>
+        )}
+      </Box>
+    </Box>
+  )
+
+  const serviciosStandaloneDesktopPanel = (
+    <Box
+      pt={1}
+      px={3}
+      pb={12}
+      overflowY="auto"
+      overflowX="hidden"
+      position="absolute"
+      top={32}
+      left={0}
+      right={0}
+      bottom={0}
+      minH={0}
+      style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }}
+    >
+      <HStack mb={3} spacing={2} flexWrap="wrap" align="center">
+        <Button
+          size="sm"
+          variant={serviciosGroupFilter === 'gruta' ? 'solid' : 'outline'}
+          colorScheme="blue"
+          onClick={() => setServiciosGroupFilter('gruta')}
+        >
+          Gruta
+        </Button>
+        <Button
+          size="sm"
+          variant={serviciosGroupFilter === 'parque' ? 'solid' : 'outline'}
+          colorScheme="blue"
+          onClick={() => setServiciosGroupFilter('parque')}
+        >
+          Parque
+        </Button>
+        <Input
+          size="sm"
+          placeholder="Buscar por nombre..."
+          value={serviciosQuery}
+          onChange={(e) => setServiciosQuery(e.target.value)}
+          maxW="260px"
+          flex={1}
+          minW="160px"
+          bg={listInputBg}
+          borderColor={listInputBorder}
+          color={isDarkMode ? 'gray.100' : 'gray.800'}
+          _placeholder={{ color: isDarkMode ? 'gray.400' : 'gray.500' }}
+        />
+      </HStack>
+      {serviceIssuesLoading ? (
+        <Flex justify="center" align="center" h="50%">
+          <Spinner size="lg" color="gray.300" />
+        </Flex>
+      ) : (
+        <Stack spacing={6}>
+          {Object.entries(servicesListGrouped)
+            .filter(([groupLabel]) => (serviciosGroupFilter === 'gruta' && groupLabel === 'Gruta') || (serviciosGroupFilter === 'parque' && groupLabel === 'Parque'))
+            .map(([groupLabel, bySystem]) => (
+              <Box key={groupLabel}>
+                <Heading size="sm" mb={3} color={listHeadingColor}>
+                  {groupLabel}
+                </Heading>
+                {Object.entries(bySystem)
+                  .map(([systemLabel, services]) => {
+                    const filtered = services.filter((s) => {
+                      if (!serviciosQuery.trim()) return true
+                      const text = (s.issueKey && serviceIssuesData[s.issueKey]?.summary) || s.label || s.id
+                      return normalizeForSearch(text).includes(normalizeForSearch(serviciosQuery.trim()))
+                    })
+                    return [systemLabel, filtered] as const
+                  })
+                  .filter(([, filtered]) => filtered.length > 0)
+                  .map(([systemLabel, services]) => (
+                    <Box key={systemLabel} mb={4}>
+                      <Text fontSize="sm" fontWeight="bold" color={listHeadingColor} mb={2}>
+                        {systemLabel}
+                      </Text>
+                      <Stack spacing={1}>
+                        {services.map((s) => (
+                          <Box
+                            key={s.id}
+                            py={2}
+                            px={3}
+                            bg={listCardBg}
+                            borderRadius="md"
+                            borderWidth="1px"
+                            borderColor={listCardBorder}
+                            cursor={s.issueKey ? 'pointer' : undefined}
+                            onClick={s.issueKey ? () => openServiciosModal(s) : undefined}
+                            _hover={s.issueKey ? { bg: listCardHoverBg } : undefined}
+                          >
+                            <HStack justify="space-between" flexWrap="wrap" gap={2}>
+                              <Text fontSize="sm" fontWeight="medium" color={listCardText}>
+                                {(s.issueKey && serviceIssuesData[s.issueKey]?.summary) || s.label || s.id}
+                              </Text>
+                              {s.issueKey && serviceIssuesData[s.issueKey]?.status != null ? (
+                                transitionBadge(serviceIssuesData[s.issueKey].status!)
+                              ) : s.issueKey ? (
+                                <Badge colorScheme="gray">Cargando…</Badge>
+                              ) : null}
+                            </HStack>
+                            {s.issueKey && (
+                              <Text fontSize="xs" color={listCardMeta} mt={1}>
+                                {s.issueKey}
+                              </Text>
+                            )}
+                          </Box>
+                        ))}
+                      </Stack>
+                    </Box>
+                  ))}
+              </Box>
+            ))}
+          <Box minH="120px" aria-hidden />
+        </Stack>
+      )}
+    </Box>
+  )
+
+  const serviciosStandaloneModals = (
+    <>
+      <Modal isOpen={!!serviciosModalItem} onClose={closeServiciosModal} isCentered size="md">
+        <ModalOverlay bg="transparent" />
+        <ModalContent>
+          <ModalHeader>
+            {serviciosModalItem && (
+              <>
+                <Text fontWeight="bold" noOfLines={2}>{serviciosModalItem.summary || serviciosModalItem.key}</Text>
+                <HStack mt={1}>
+                  <Badge colorScheme="blue">{serviciosModalItem.key}</Badge>
+                </HStack>
+              </>
+            )}
+          </ModalHeader>
+          <ModalBody>
+            <Stack spacing={4}>
+              <Box>
+                <Text fontWeight="semibold" mb={2}>Transiciones</Text>
+                <HStack spacing={2} fontSize="sm" color="gray.600" mb={2}>
+                  <Text>Estado actual:</Text>
+                  {serviciosModalItem?.status ? transitionBadge(serviciosModalItem.status) : <Text>Sin datos</Text>}
+                </HStack>
+                {serviciosTransitionLoading ? (
+                  <Text fontSize="sm">Cargando transiciones...</Text>
+                ) : serviciosTransitionOptions.length === 0 ? (
+                  <Text fontSize="sm">No hay transiciones disponibles.</Text>
+                ) : (
+                  <SimpleGrid columns={{ base: 2, sm: 3 }} spacing={2}>
+                    {serviciosTransitionOptions
+                      .filter((t) => (t.name || '').toLowerCase() !== 'por hacer')
+                      .map((t) => (
+                        <Button
+                          key={t.id}
+                          size="sm"
+                          variant="outline"
+                          onClick={() => (isYellowOrRedTransition(t) ? openServiciosNameModal(t.id) : handleServiciosTransitionDirect(t.id))}
+                          isDisabled={serviciosTransitionSaving}
+                        >
+                          {transitionButtonLabel(t)}
+                        </Button>
+                      ))}
+                  </SimpleGrid>
+                )}
+              </Box>
+            </Stack>
+          </ModalBody>
+          <ModalFooter>
+            <Button size="sm" variant="ghost" color={modalGhostColor} _hover={{ bg: modalGhostHoverBg }} onClick={closeServiciosModal}>
+              Cancelar
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+      <Modal isOpen={serviciosNameModalOpen} onClose={closeServiciosNameModal} isCentered size="sm">
+        <ModalOverlay bg="blackAlpha.600" />
+        <ModalContent>
+          <ModalHeader>¿Quién realiza el cambio?</ModalHeader>
+          <ModalBody>
+            <Text fontSize="sm" mb={2} color="gray.600">
+              Escribí tu nombre para registrarlo en Jira junto con el cambio de estado.
+            </Text>
+            <Input
+              size="sm"
+              placeholder="Nombre y apellido"
+              value={serviciosName}
+              onChange={(e) => setServiciosName(e.target.value)}
+            />
+          </ModalBody>
+          <ModalFooter>
+            <Button size="sm" variant="ghost" color={modalGhostColor} _hover={{ bg: modalGhostHoverBg }} mr={2} onClick={closeServiciosNameModal}>
+              Cancelar
+            </Button>
+            <Button size="sm" {...modalActionButtonProps} onClick={handleServiciosTransitionWithName} isDisabled={serviciosTransitionSaving}>
+              {serviciosTransitionSaving ? <Spinner size="xs" /> : 'Confirmar cambio'}
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+    </>
   )
 
   const isWaterFieldNode = WATER_FIELD_ISSUE_KEYS.includes(transitionNode?.data?.issueKey ?? '')
@@ -6181,6 +6526,9 @@ function App() {
           </Button>
           <Button size="lg" h="auto" py={7} colorScheme="blue" onClick={enterPiletasApp}>
             Control piletas
+          </Button>
+          <Button size="lg" h="auto" py={7} colorScheme="blue" onClick={enterServiciosApp}>
+            Servicios
           </Button>
           <Flex justify="center" pt={2}>
             <Button
@@ -6329,6 +6677,135 @@ function App() {
     )
   }
 
+  if (appEntry === 'servicios') {
+    if (isMobile) {
+      return (
+        <Box className={isDarkMode ? 'ch-dark' : ''} w="100vw" h="100dvh" bg={appBg}>
+          <Box ref={diagramAreaRef} w="100%" h="100%" minH="100dvh" position="relative">
+            <div
+              style={{
+                position: 'absolute',
+                top: 'max(20px, calc(env(safe-area-inset-top, 0px) + 12px))',
+                right: 'max(24px, calc(env(safe-area-inset-right, 0px) + 16px))',
+                zIndex: 10,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8
+              }}
+            >
+              <Button
+                size="xs"
+                minW="32px"
+                h="32px"
+                px={0}
+                borderRadius="10px"
+                variant="outline"
+                colorScheme="blue"
+                onClick={goHome}
+                aria-label="Volver al inicio"
+                title="Inicio"
+              >
+                🏠
+              </Button>
+              <Button
+                size="xs"
+                minW="32px"
+                h="32px"
+                px={0}
+                borderRadius="10px"
+                variant="outline"
+                colorScheme={isDarkMode ? 'yellow' : 'gray'}
+                onClick={() => setIsDarkMode((prev) => !prev)}
+                aria-label={isDarkMode ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+              >
+                ☀️🌙
+              </Button>
+              <div
+                style={{
+                  background: '#FEEBC8',
+                  border: '1px solid #F6AD55',
+                  borderRadius: 999,
+                  padding: '6px 12px',
+                  fontSize: 14,
+                  fontWeight: 600,
+                  color: '#7B341E',
+                  boxShadow: '0 1px 3px rgba(0, 0, 0, 0.12)',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                Servicios
+              </div>
+            </div>
+            {serviciosStandaloneMobileOverlay}
+            {serviciosStandaloneModals}
+          </Box>
+        </Box>
+      )
+    }
+    return (
+      <Box className={isDarkMode ? 'ch-dark' : ''} minH="100dvh" bg={appBg} py={{ base: 2, md: 6 }}>
+        <Container maxW={{ base: 'full', lg: '7xl' }} px={{ base: 2, md: 4 }}>
+          <Flex mb={3} justify="flex-end" align="center" flexWrap="wrap" gap={3}>
+            <HStack spacing={2}>
+              <Button
+                size="xs"
+                minW="32px"
+                h="32px"
+                px={0}
+                borderRadius="10px"
+                variant="outline"
+                colorScheme="blue"
+                onClick={goHome}
+                aria-label="Volver al inicio"
+                title="Inicio"
+              >
+                🏠
+              </Button>
+              <Button
+                size="xs"
+                minW="32px"
+                h="32px"
+                px={0}
+                borderRadius="10px"
+                variant="outline"
+                colorScheme={isDarkMode ? 'yellow' : 'gray'}
+                onClick={() => setIsDarkMode((prev) => !prev)}
+                aria-label={isDarkMode ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+              >
+                ☀️🌙
+              </Button>
+              <Box
+                px={3}
+                py={1.5}
+                borderRadius="full"
+                bg={isDarkMode ? '#78350F' : '#FFEDD5'}
+                borderWidth="1px"
+                borderColor={isDarkMode ? '#D97706' : '#F6AD55'}
+                fontSize="sm"
+                fontWeight="semibold"
+                color={isDarkMode ? '#FEF3C7' : '#7B341E'}
+              >
+                Servicios
+              </Box>
+            </HStack>
+          </Flex>
+          <Box
+            position="relative"
+            minH={{ base: '78vh', md: '85vh' }}
+            bg={panelBg}
+            borderWidth="1px"
+            borderColor={panelBorder}
+            borderRadius="lg"
+            overflow="hidden"
+          >
+            {serviciosStandaloneDesktopPanel}
+          </Box>
+          {serviciosStandaloneModals}
+        </Container>
+      </Box>
+    )
+  }
+
   if (isMobile) {
   return (
       <Box className={isDarkMode ? 'ch-dark' : ''} w="100vw" h="100dvh" bg={appBg}>
@@ -6361,7 +6838,7 @@ function App() {
                         className={`menu-item${currentGroup === group.id ? ' active' : ''}`}
                         onClick={() => {
                           setCurrentGroup(group.id)
-                          if (group.id === 'control' || group.id === 'servicios') {
+                          if (group.id === 'control') {
                             setMenuOpen(false)
                           } else {
                             setMenuLevel('system')
@@ -6486,212 +6963,7 @@ function App() {
               {displayLabel}
             </div>
           </div>
-          {currentGroup === 'servicios' ? (
-            <>
-            {/* Móvil: overlay fijo para que solo esta lista haga scroll y no la página. pt deja espacio al botón hamburguesa (44px + margen). */}
-            <Box
-              position="fixed"
-              top={0}
-              left={0}
-              right={0}
-              bottom={0}
-              zIndex={4}
-              bg={listOverlayBg}
-              display="flex"
-              flexDirection="column"
-              pt="max(76px, calc(env(safe-area-inset-top, 0px) + 60px))"
-              style={{ touchAction: 'pan-y' }}
-            >
-              <Box px={3} pb={2} flexShrink={0}>
-                <HStack mb={3} spacing={2} flexWrap="wrap" align="center">
-                  <Button
-                    size="sm"
-                    variant={serviciosGroupFilter === 'gruta' ? 'solid' : 'outline'}
-                    colorScheme="blue"
-                    onClick={() => setServiciosGroupFilter('gruta')}
-                  >
-                    Gruta
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant={serviciosGroupFilter === 'parque' ? 'solid' : 'outline'}
-                    colorScheme="blue"
-                    onClick={() => setServiciosGroupFilter('parque')}
-                  >
-                    Parque
-                  </Button>
-                  <Input
-                    size="sm"
-                    placeholder="Buscar por nombre..."
-                    value={serviciosQuery}
-                    onChange={(e) => setServiciosQuery(e.target.value)}
-                    maxW={{ base: '100%', sm: '220px' }}
-                    flex={1}
-                    minW="140px"
-                    bg={listInputBg}
-                    borderColor={listInputBorder}
-                    color={isDarkMode ? 'gray.100' : 'gray.800'}
-                    _placeholder={{ color: isDarkMode ? 'gray.400' : 'gray.500' }}
-                  />
-                </HStack>
-              </Box>
-              <Box
-                flex={1}
-                minH={0}
-                overflowY="auto"
-                overflowX="hidden"
-                px={3}
-                pb="max(32px, env(safe-area-inset-bottom, 0px))"
-                style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }}
-              >
-                {serviceIssuesLoading ? (
-                  <Flex justify="center" align="center" h="50%">
-                    <Spinner size="lg" color="gray.300" />
-                  </Flex>
-                ) : (
-                <Stack spacing={6}>
-                  {Object.entries(servicesListGrouped)
-                    .filter(([groupLabel]) => (serviciosGroupFilter === 'gruta' && groupLabel === 'Gruta') || (serviciosGroupFilter === 'parque' && groupLabel === 'Parque'))
-                    .map(([groupLabel, bySystem]) => (
-                    <Box key={groupLabel}>
-                      <Heading size="sm" mb={3} color={listHeadingColor}>
-                        {groupLabel}
-                      </Heading>
-                      {Object.entries(bySystem)
-                        .map(([systemLabel, services]) => {
-                          const filtered = services.filter((s) => {
-                            if (!serviciosQuery.trim()) return true
-                            const text = (s.issueKey && serviceIssuesData[s.issueKey]?.summary) || s.label || s.id
-                            return normalizeForSearch(text).includes(normalizeForSearch(serviciosQuery.trim()))
-                          })
-                          return [systemLabel, filtered] as const
-                        })
-                        .filter(([, filtered]) => filtered.length > 0)
-                        .map(([systemLabel, services]) => (
-                        <Box key={systemLabel} mb={4}>
-                          <Text fontSize="sm" fontWeight="bold" color={listHeadingColor} mb={2}>
-                            {systemLabel}
-                          </Text>
-                          <Stack spacing={1}>
-                            {services.map((s) => (
-                              <Box
-                                key={s.id}
-                                py={2}
-                                px={3}
-                                bg={listCardBg}
-                                borderRadius="md"
-                                borderWidth="1px"
-                                borderColor={listCardBorder}
-                                cursor={s.issueKey ? 'pointer' : undefined}
-                                onClick={s.issueKey ? () => openServiciosModal(s) : undefined}
-                                _hover={s.issueKey ? { bg: listCardHoverBg } : undefined}
-                              >
-                                <HStack justify="space-between" flexWrap="wrap" gap={2}>
-                                  <Text fontSize="sm" fontWeight="medium" color={listCardText}>
-                                    {(s.issueKey && serviceIssuesData[s.issueKey]?.summary) || s.label || s.id}
-                                  </Text>
-                                  {s.issueKey && serviceIssuesData[s.issueKey]?.status != null ? (
-                                    transitionBadge(serviceIssuesData[s.issueKey].status!)
-                                  ) : s.issueKey ? (
-                                    <Badge colorScheme="gray">Cargando…</Badge>
-                                  ) : null}
-                                </HStack>
-                                {s.issueKey && (
-                                  <Text fontSize="xs" color={listCardMeta} mt={1}>
-                                    {s.issueKey}
-                                  </Text>
-                                )}
-                              </Box>
-                            ))}
-                          </Stack>
-                        </Box>
-                      ))}
-                    </Box>
-                  ))}
-                  <Box minH="40px" aria-hidden />
-                </Stack>
-                )}
-              </Box>
-            </Box>
-            <Modal isOpen={!!serviciosModalItem} onClose={closeServiciosModal} isCentered size="xs">
-              <ModalOverlay bg="transparent" />
-              <ModalContent maxW="92vw">
-                <ModalHeader pb={2}>
-                  {serviciosModalItem && (
-                    <>
-                      <Text fontWeight="bold" noOfLines={2}>{serviciosModalItem.summary || serviciosModalItem.key}</Text>
-                      <HStack mt={1}>
-                        <Badge colorScheme="blue">{serviciosModalItem.key}</Badge>
-                      </HStack>
-                    </>
-                  )}
-                </ModalHeader>
-                <ModalBody pt={2}>
-                  <Stack spacing={4}>
-                    <Box>
-                      <Text fontSize="sm" fontWeight="semibold" mb={2}>Transiciones</Text>
-                      <HStack spacing={2} fontSize="sm" color="gray.600" mb={2}>
-                        <Text>Estado actual:</Text>
-                        {serviciosModalItem?.status ? transitionBadge(serviciosModalItem.status) : <Text>Sin datos</Text>}
-                      </HStack>
-                      {serviciosTransitionLoading ? (
-                        <Text fontSize="sm">Cargando transiciones...</Text>
-                      ) : serviciosTransitionOptions.length === 0 ? (
-                        <Text fontSize="sm">No hay transiciones disponibles.</Text>
-                      ) : (
-                        <SimpleGrid columns={2} spacing={2}>
-                          {serviciosTransitionOptions
-                            .filter((t) => (t.name || '').toLowerCase() !== 'por hacer')
-                            .map((t) => (
-                              <Button
-                                key={t.id}
-                                size="sm"
-                                variant="outline"
-                                onClick={() => (isYellowOrRedTransition(t) ? openServiciosNameModal(t.id) : handleServiciosTransitionDirect(t.id))}
-                                isDisabled={serviciosTransitionSaving}
-                              >
-                                {transitionButtonLabel(t)}
-                              </Button>
-                            ))}
-                        </SimpleGrid>
-                      )}
-                    </Box>
-                  </Stack>
-                </ModalBody>
-                <ModalFooter>
-                  <Button size="sm" variant="ghost" color={modalGhostColor} _hover={{ bg: modalGhostHoverBg }} onClick={closeServiciosModal}>
-                    Cancelar
-                  </Button>
-                </ModalFooter>
-              </ModalContent>
-            </Modal>
-            <Modal isOpen={serviciosNameModalOpen} onClose={closeServiciosNameModal} isCentered size="xs">
-              <ModalOverlay bg="blackAlpha.600" />
-              <ModalContent maxW="92vw">
-                <ModalHeader>¿Quién realiza el cambio?</ModalHeader>
-                <ModalBody>
-                  <Text fontSize="sm" mb={2} color="gray.600">
-                    Escribí tu nombre para registrarlo en Jira junto con el cambio de estado.
-                  </Text>
-                  <Input
-                    size="sm"
-                    placeholder="Nombre y apellido"
-                    value={serviciosName}
-                    onChange={(e) => setServiciosName(e.target.value)}
-                  />
-                </ModalBody>
-                <ModalFooter>
-                  <Button size="sm" variant="ghost" color={modalGhostColor} _hover={{ bg: modalGhostHoverBg }} mr={2} onClick={closeServiciosNameModal}>
-                    Cancelar
-                  </Button>
-                  <Button size="sm" {...modalActionButtonProps} onClick={handleServiciosTransitionWithName} isDisabled={serviciosTransitionSaving}>
-                    {serviciosTransitionSaving ? <Spinner size="xs" /> : 'Confirmar cambio'}
-                  </Button>
-                </ModalFooter>
-              </ModalContent>
-            </Modal>
-            </>
-          ) : currentGroup === 'control' ? (
+          {currentGroup === 'control' ? (
             <Box pt={1} px={3} pb={4} overflowY="auto" h="100%" position="absolute" inset={0} top={32} bg={listOverlayBg}>
               {controlLoading ? (
                 <Flex justify="center" align="center" h="50%">
@@ -7488,7 +7760,7 @@ function App() {
                           className={`menu-item${currentGroup === group.id ? ' active' : ''}`}
                           onClick={() => {
                             setCurrentGroup(group.id)
-                            if (group.id === 'control' || group.id === 'servicios') {
+                            if (group.id === 'control') {
                               setMenuOpen(false)
                             } else {
                               setMenuLevel('system')
@@ -7613,200 +7885,7 @@ function App() {
                 {displayLabel}
               </div>
             </div>
-            {currentGroup === 'servicios' ? (
-            <>
-            <Box
-              pt={1}
-              px={3}
-              pb={12}
-              overflowY="auto"
-              overflowX="hidden"
-              position="absolute"
-              top={32}
-              left={0}
-              right={0}
-              bottom={0}
-              minH={0}
-              style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }}
-            >
-              <HStack mb={3} spacing={2} flexWrap="wrap" align="center">
-                <Button
-                  size="sm"
-                  variant={serviciosGroupFilter === 'gruta' ? 'solid' : 'outline'}
-                  colorScheme="blue"
-                  onClick={() => setServiciosGroupFilter('gruta')}
-                >
-                  Gruta
-                </Button>
-                <Button
-                  size="sm"
-                  variant={serviciosGroupFilter === 'parque' ? 'solid' : 'outline'}
-                  colorScheme="blue"
-                  onClick={() => setServiciosGroupFilter('parque')}
-                >
-                  Parque
-                </Button>
-                <Input
-                  size="sm"
-                  placeholder="Buscar por nombre..."
-                  value={serviciosQuery}
-                  onChange={(e) => setServiciosQuery(e.target.value)}
-                  maxW="260px"
-                  flex={1}
-                  minW="160px"
-                  bg={listInputBg}
-                  borderColor={listInputBorder}
-                  color={isDarkMode ? 'gray.100' : 'gray.800'}
-                  _placeholder={{ color: isDarkMode ? 'gray.400' : 'gray.500' }}
-                />
-              </HStack>
-              {serviceIssuesLoading ? (
-                <Flex justify="center" align="center" h="50%">
-                  <Spinner size="lg" color="gray.300" />
-                </Flex>
-              ) : (
-              <Stack spacing={6}>
-                {Object.entries(servicesListGrouped)
-                  .filter(([groupLabel]) => (serviciosGroupFilter === 'gruta' && groupLabel === 'Gruta') || (serviciosGroupFilter === 'parque' && groupLabel === 'Parque'))
-                  .map(([groupLabel, bySystem]) => (
-                  <Box key={groupLabel}>
-                    <Heading size="sm" mb={3} color={listHeadingColor}>
-                      {groupLabel}
-                    </Heading>
-                    {Object.entries(bySystem)
-                      .map(([systemLabel, services]) => {
-                        const filtered = services.filter((s) => {
-                          if (!serviciosQuery.trim()) return true
-                          const text = (s.issueKey && serviceIssuesData[s.issueKey]?.summary) || s.label || s.id
-                          return normalizeForSearch(text).includes(normalizeForSearch(serviciosQuery.trim()))
-                        })
-                        return [systemLabel, filtered] as const
-                      })
-                      .filter(([, filtered]) => filtered.length > 0)
-                      .map(([systemLabel, services]) => (
-                      <Box key={systemLabel} mb={4}>
-                        <Text fontSize="sm" fontWeight="bold" color={listHeadingColor} mb={2}>
-                          {systemLabel}
-                        </Text>
-                        <Stack spacing={1}>
-                          {services.map((s) => (
-                            <Box
-                              key={s.id}
-                              py={2}
-                              px={3}
-                              bg={listCardBg}
-                              borderRadius="md"
-                              borderWidth="1px"
-                              borderColor={listCardBorder}
-                              cursor={s.issueKey ? 'pointer' : undefined}
-                              onClick={s.issueKey ? () => openServiciosModal(s) : undefined}
-                              _hover={s.issueKey ? { bg: listCardHoverBg } : undefined}
-                            >
-                              <HStack justify="space-between" flexWrap="wrap" gap={2}>
-                                <Text fontSize="sm" fontWeight="medium" color={listCardText}>
-                                  {(s.issueKey && serviceIssuesData[s.issueKey]?.summary) || s.label || s.id}
-                                </Text>
-                                {s.issueKey && serviceIssuesData[s.issueKey]?.status != null ? (
-                                  transitionBadge(serviceIssuesData[s.issueKey].status!)
-                                ) : s.issueKey ? (
-                                  <Badge colorScheme="gray">Cargando…</Badge>
-                                ) : null}
-                              </HStack>
-                              {s.issueKey && (
-                                <Text fontSize="xs" color={listCardMeta} mt={1}>
-                                  {s.issueKey}
-                                </Text>
-                              )}
-                            </Box>
-                          ))}
-                        </Stack>
-                      </Box>
-                    ))}
-                  </Box>
-                ))}
-                <Box minH="120px" aria-hidden />
-              </Stack>
-              )}
-            </Box>
-            <Modal isOpen={!!serviciosModalItem} onClose={closeServiciosModal} isCentered size="md">
-              <ModalOverlay bg="transparent" />
-              <ModalContent>
-                <ModalHeader>
-                  {serviciosModalItem && (
-                    <>
-                      <Text fontWeight="bold" noOfLines={2}>{serviciosModalItem.summary || serviciosModalItem.key}</Text>
-                      <HStack mt={1}>
-                        <Badge colorScheme="blue">{serviciosModalItem.key}</Badge>
-                      </HStack>
-                    </>
-                  )}
-                </ModalHeader>
-                <ModalBody>
-                  <Stack spacing={4}>
-                    <Box>
-                      <Text fontWeight="semibold" mb={2}>Transiciones</Text>
-                      <HStack spacing={2} fontSize="sm" color="gray.600" mb={2}>
-                        <Text>Estado actual:</Text>
-                        {serviciosModalItem?.status ? transitionBadge(serviciosModalItem.status) : <Text>Sin datos</Text>}
-                      </HStack>
-                      {serviciosTransitionLoading ? (
-                        <Text fontSize="sm">Cargando transiciones...</Text>
-                      ) : serviciosTransitionOptions.length === 0 ? (
-                        <Text fontSize="sm">No hay transiciones disponibles.</Text>
-                      ) : (
-                        <SimpleGrid columns={{ base: 2, sm: 3 }} spacing={2}>
-                          {serviciosTransitionOptions
-                            .filter((t) => (t.name || '').toLowerCase() !== 'por hacer')
-                            .map((t) => (
-                              <Button
-                                key={t.id}
-                                size="sm"
-                                variant="outline"
-                                onClick={() => (isYellowOrRedTransition(t) ? openServiciosNameModal(t.id) : handleServiciosTransitionDirect(t.id))}
-                                isDisabled={serviciosTransitionSaving}
-                              >
-                                {transitionButtonLabel(t)}
-                              </Button>
-                            ))}
-                        </SimpleGrid>
-                      )}
-                    </Box>
-                  </Stack>
-                </ModalBody>
-                <ModalFooter>
-                  <Button size="sm" variant="ghost" color={modalGhostColor} _hover={{ bg: modalGhostHoverBg }} onClick={closeServiciosModal}>
-                    Cancelar
-                  </Button>
-                </ModalFooter>
-              </ModalContent>
-            </Modal>
-            <Modal isOpen={serviciosNameModalOpen} onClose={closeServiciosNameModal} isCentered size="sm">
-              <ModalOverlay bg="blackAlpha.600" />
-              <ModalContent>
-                <ModalHeader>¿Quién realiza el cambio?</ModalHeader>
-                <ModalBody>
-                  <Text fontSize="sm" mb={2} color="gray.600">
-                    Escribí tu nombre para registrarlo en Jira junto con el cambio de estado.
-                  </Text>
-                  <Input
-                    size="sm"
-                    placeholder="Nombre y apellido"
-                    value={serviciosName}
-                    onChange={(e) => setServiciosName(e.target.value)}
-                  />
-                </ModalBody>
-                <ModalFooter>
-                  <Button size="sm" variant="ghost" color={modalGhostColor} _hover={{ bg: modalGhostHoverBg }} mr={2} onClick={closeServiciosNameModal}>
-                    Cancelar
-                  </Button>
-                  <Button size="sm" {...modalActionButtonProps} onClick={handleServiciosTransitionWithName} isDisabled={serviciosTransitionSaving}>
-                    {serviciosTransitionSaving ? <Spinner size="xs" /> : 'Confirmar cambio'}
-                  </Button>
-                </ModalFooter>
-              </ModalContent>
-            </Modal>
-            </>
-            ) : currentGroup === 'control' ? (
+            {currentGroup === 'control' ? (
             <Box pt={1} px={3} pb={4} overflowY="auto" h="100%" position="absolute" inset={0} top={32} bg={listOverlayBg}>
               {controlLoading ? (
                 <Flex justify="center" align="center" h="50%">
