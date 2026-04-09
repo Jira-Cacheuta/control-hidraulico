@@ -34,6 +34,8 @@ pm2 restart ch-backend
 # o: pm2 restart all
 ```
 
+**Importante:** hace falta **`npm ci`** (o `npm install`) **después de cada `git pull`** en `ch_web`. Si saltás ese paso, faltan paquetes (p. ej. `vite-plugin-pwa`) y `npm run build` / `tsc` fallan. No uses `npm install --omit=dev` para compilar el front: Vite y la PWA están en `devDependencies`.
+
 Comprobar logs: `pm2 logs ch-backend --lines 50`.
 
 ## Verificación rápida
