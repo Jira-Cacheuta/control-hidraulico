@@ -147,8 +147,11 @@ const SYSTEM_GROUPS = [
   { id: 'controlPiletas', label: 'Control piletas' }
 ]
 
-/** Menú hamburguesa de Control hidráulico (piletas y servicios tienen entrada propia desde el inicio). */
-const SYSTEM_GROUPS_HIDRAULICO = SYSTEM_GROUPS.filter((g) => g.id !== 'controlPiletas' && g.id !== 'servicios')
+/** Menú hamburguesa de Control hidráulico: lista unificada de sistemas + Control. */
+const HIDRAULICO_HAMBURGER_GROUPS = [
+  { id: 'sistemas' as const, label: 'Sistemas' },
+  { id: 'control' as const, label: 'Control' }
+]
 
 type AppEntry = 'home' | 'hidraulico' | 'piletas' | 'servicios'
 
@@ -4176,9 +4179,10 @@ function App() {
     }
     return 'home'
   })
-  const [menuLevel, setMenuLevel] = useState<'group' | 'system'>('group')
-  /** Lista intermedia Gruta/Parque antes de abrir el diagrama (null = no mostrar lista). */
+  /** Lista unificada Sistemas: área activa (Gruta / Parque / Pozos); null = diagrama o Control. */
   const [hidraulicoSystemListGroup, setHidraulicoSystemListGroup] = useState<null | 'gruta' | 'parque' | 'pozos'>(null)
+  /** Al volver a abrir “Sistemas” desde el menú, restaurar este filtro. */
+  const [hidraulicoLastSistemasArea, setHidraulicoLastSistemasArea] = useState<'gruta' | 'parque' | 'pozos'>('gruta')
   const [hidraulicoSystemsQuery, setHidraulicoSystemsQuery] = useState('')
   const [controlIssues, setControlIssues] = useState<
     Array<{ key: string; summary?: string; status?: string; issueType?: string; epicKey?: string; epicSummary?: string; sector?: string }>
@@ -4351,7 +4355,6 @@ function App() {
     return [...new Set(keys)]
   }, [servicesListGrouped])
 
-  const currentGroupLabel = SYSTEM_GROUPS.find((group) => group.id === currentGroup)?.label ?? 'Grupo'
   const displayLabel =
     currentGroup === 'control'
       ? 'Control'
@@ -4360,15 +4363,8 @@ function App() {
         : currentGroup === 'servicios'
           ? 'Servicios'
           : hidraulicoSystemListGroup != null
-            ? currentGroupLabel
+            ? 'Sistemas'
             : currentSystemLabel
-  const systemsForGroup = SYSTEMS.filter((sys) => sys.group === currentGroup)
-  const sala4Systems =
-    currentGroup === 'parque' ? systemsForGroup.filter((sys) => sys.subgroup === 'sala4') : []
-  const sala5Systems =
-    currentGroup === 'parque' ? systemsForGroup.filter((sys) => sys.subgroup === 'sala5') : []
-  const regularSystems =
-    currentGroup === 'parque' ? systemsForGroup.filter((sys) => !sys.subgroup) : systemsForGroup
   const activeNodes =
     currentSystem === 'gruta1'
       ? grutaNodes
@@ -4943,10 +4939,12 @@ function App() {
 
   const handleSelectSystem = (systemId: string) => {
     const selected = SYSTEMS.find((sys) => sys.id === systemId)
+    if (selected?.group === 'gruta' || selected?.group === 'parque' || selected?.group === 'pozos') {
+      setHidraulicoLastSistemasArea(selected.group)
+    }
     if (selected?.group) setCurrentGroup(selected.group)
     setCurrentSystem(systemId)
     setMenuOpen(false)
-    setMenuLevel('group')
     setHidraulicoSystemListGroup(null)
   }
 
@@ -5351,14 +5349,13 @@ function App() {
   const goHome = useCallback(() => {
     setAppEntry('home')
     setMenuOpen(false)
-    setMenuLevel('group')
     setHidraulicoSystemListGroup(null)
   }, [])
 
   const enterHidraulico = useCallback(() => {
     setAppEntry('hidraulico')
     setMenuOpen(false)
-    setMenuLevel('group')
+    setHidraulicoLastSistemasArea('gruta')
     setCurrentGroup('gruta')
     setHidraulicoSystemListGroup('gruta')
   }, [])
@@ -5366,13 +5363,11 @@ function App() {
   const enterPiletasApp = useCallback(() => {
     setAppEntry('piletas')
     setMenuOpen(false)
-    setMenuLevel('group')
   }, [])
 
   const enterServiciosApp = useCallback(() => {
     setAppEntry('servicios')
     setMenuOpen(false)
-    setMenuLevel('group')
   }, [])
 
   useEffect(() => {
@@ -6546,35 +6541,83 @@ function App() {
   const isPuestoModal = isPuestoNode(transitionNode)
   const activePump = pumpOptions.find((option) => option.key === pumpActiveKey)
 
-  const hidraulicoQueryNorm = normalizeForSearch(hidraulicoSystemsQuery.trim())
-  const hidraulicoLabelMatches = (label: string) =>
-    !hidraulicoQueryNorm || normalizeForSearch(label).includes(hidraulicoQueryNorm)
-  const regularForList = regularSystems.filter((s) => hidraulicoLabelMatches(s.label))
-  const sala4ForList = sala4Systems.filter((s) => hidraulicoLabelMatches(s.label))
-  const sala5ForList = sala5Systems.filter((s) => hidraulicoLabelMatches(s.label))
-  const hidraulicoListHasRows = regularForList.length > 0 || sala4ForList.length > 0 || sala5ForList.length > 0
+  const sistemasListRows = useMemo(() => {
+    const area = hidraulicoSystemListGroup
+    if (!area) {
+      return {
+        regular: [] as (typeof SYSTEMS)[number][],
+        sala4: [] as (typeof SYSTEMS)[number][],
+        sala5: [] as (typeof SYSTEMS)[number][],
+        regularAll: [] as (typeof SYSTEMS)[number][],
+        sala4All: [] as (typeof SYSTEMS)[number][],
+        sala5All: [] as (typeof SYSTEMS)[number][],
+        hasRows: false
+      }
+    }
+    const systemsForArea = SYSTEMS.filter((sys) => sys.group === area)
+    const sala4All = area === 'parque' ? systemsForArea.filter((sys) => sys.subgroup === 'sala4') : []
+    const sala5All = area === 'parque' ? systemsForArea.filter((sys) => sys.subgroup === 'sala5') : []
+    const regularAll = area === 'parque' ? systemsForArea.filter((sys) => !sys.subgroup) : systemsForArea
+    const q = normalizeForSearch(hidraulicoSystemsQuery.trim())
+    const match = (label: string) => !q || normalizeForSearch(label).includes(q)
+    const regular = regularAll.filter((s) => match(s.label))
+    const sala4 = sala4All.filter((s) => match(s.label))
+    const sala5 = sala5All.filter((s) => match(s.label))
+    const hasRows = regular.length > 0 || sala4.length > 0 || sala5.length > 0
+    return { regular, sala4, sala5, regularAll, sala4All, sala5All, hasRows }
+  }, [hidraulicoSystemListGroup, hidraulicoSystemsQuery])
 
   /** Espacio bajo el botón hamburguesa (.system-menu top + 44px alto) para que el título no quede encima. */
   const hidraulicoListHeaderPadTop = 'calc(max(20px, env(safe-area-inset-top, 0px) + 12px) + 52px)'
 
+  const pickSistemasArea = (area: 'gruta' | 'parque' | 'pozos') => {
+    setHidraulicoLastSistemasArea(area)
+    setHidraulicoSystemListGroup(area)
+    setCurrentGroup(area)
+  }
+
   const hidraulicoSystemsListPanel = (
     <Box display="flex" flexDirection="column" h="100%" minH={0} bg={listOverlayBg}>
       <Box px={3} pt={hidraulicoListHeaderPadTop} pb={2} flexShrink={0} borderBottomWidth="1px" borderColor={listCardBorder}>
-        <Heading size="sm" mb={currentGroup === 'pozos' ? 0 : 2} color={listHeadingColor}>
-          {currentGroup === 'pozos' ? 'Pozos' : 'Sistemas'}
-        </Heading>
-        {currentGroup !== 'pozos' && (
+        <HStack spacing={2} flexWrap="wrap" align="center">
+          <Button
+            size="sm"
+            variant={hidraulicoSystemListGroup === 'gruta' ? 'solid' : 'outline'}
+            colorScheme="blue"
+            onClick={() => pickSistemasArea('gruta')}
+          >
+            Gruta
+          </Button>
+          <Button
+            size="sm"
+            variant={hidraulicoSystemListGroup === 'parque' ? 'solid' : 'outline'}
+            colorScheme="blue"
+            onClick={() => pickSistemasArea('parque')}
+          >
+            Parque
+          </Button>
+          <Button
+            size="sm"
+            variant={hidraulicoSystemListGroup === 'pozos' ? 'solid' : 'outline'}
+            colorScheme="blue"
+            onClick={() => pickSistemasArea('pozos')}
+          >
+            Pozos
+          </Button>
           <Input
             size="sm"
             placeholder="Buscar sistema…"
             value={hidraulicoSystemsQuery}
             onChange={(e) => setHidraulicoSystemsQuery(e.target.value)}
+            maxW={{ base: '100%', sm: '260px' }}
+            flex={1}
+            minW="140px"
             bg={listInputBg}
             borderColor={listInputBorder}
             color={isDarkMode ? 'gray.100' : 'gray.800'}
             _placeholder={{ color: isDarkMode ? 'gray.400' : 'gray.500' }}
           />
-        )}
+        </HStack>
       </Box>
       <Box
         flex={1}
@@ -6585,20 +6628,22 @@ function App() {
         pb="max(24px, env(safe-area-inset-bottom, 0px))"
         style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }}
       >
-        {!hidraulicoListHasRows ? (
+        {!sistemasListRows.hasRows ? (
           <Text fontSize="sm" color={listCardMeta}>
             {hidraulicoSystemsQuery.trim() ? 'Ningún sistema coincide con la búsqueda.' : 'No hay sistemas en este grupo.'}
           </Text>
         ) : (
           <Stack spacing={4}>
-            {currentGroup === 'parque' && regularForList.length > 0 && (sala4Systems.length > 0 || sala5Systems.length > 0) && (
+            {hidraulicoSystemListGroup === 'parque' &&
+              sistemasListRows.regular.length > 0 &&
+              (sistemasListRows.sala4All.length > 0 || sistemasListRows.sala5All.length > 0) && (
               <Text fontSize="xs" fontWeight="semibold" color={listCardMeta} textTransform="uppercase" letterSpacing="wide">
                 Resto de sistemas
               </Text>
             )}
-            {regularForList.length > 0 && (
+            {sistemasListRows.regular.length > 0 && (
               <Stack spacing={2}>
-                {regularForList.map((sys) => (
+                {sistemasListRows.regular.map((sys) => (
                   <Box
                     key={sys.id}
                     py={2}
@@ -6618,13 +6663,13 @@ function App() {
                 ))}
               </Stack>
             )}
-            {sala4ForList.length > 0 && (
+            {sistemasListRows.sala4.length > 0 && (
               <Box>
                 <Text fontSize="xs" fontWeight="semibold" color={listCardMeta} mb={2} textTransform="uppercase" letterSpacing="wide">
                   Sistemas Sala 4
                 </Text>
                 <Stack spacing={2}>
-                  {sala4ForList.map((sys) => (
+                  {sistemasListRows.sala4.map((sys) => (
                     <Box
                       key={sys.id}
                       py={2}
@@ -6645,13 +6690,13 @@ function App() {
                 </Stack>
               </Box>
             )}
-            {sala5ForList.length > 0 && (
+            {sistemasListRows.sala5.length > 0 && (
               <Box>
                 <Text fontSize="xs" fontWeight="semibold" color={listCardMeta} mb={2} textTransform="uppercase" letterSpacing="wide">
                   Sistemas Sala 5
                 </Text>
                 <Stack spacing={2}>
-                  {sala5ForList.map((sys) => (
+                  {sistemasListRows.sala5.map((sys) => (
                     <Box
                       key={sys.id}
                       py={2}
@@ -6692,9 +6737,6 @@ function App() {
         px={4}
       >
         <Stack spacing={8} maxW="md" w="100%" align="stretch">
-          <Text textAlign="center" fontSize="sm" color={listCardMeta}>
-            Elegí qué aplicación querés usar
-          </Text>
           <Button size="lg" h="auto" py={7} colorScheme="blue" onClick={enterHidraulico}>
             Control hidráulico
           </Button>
@@ -6988,13 +7030,7 @@ function App() {
             <button
               type="button"
               className={`menu-button${menuOpen ? ' open' : ''}`}
-              onClick={() =>
-                setMenuOpen((prev) => {
-                  const next = !prev
-                  if (next) setMenuLevel('group')
-                  return next
-                })
-              }
+              onClick={() => setMenuOpen((prev) => !prev)}
               aria-label="Abrir menú de sistemas"
             >
               <span />
@@ -7003,90 +7039,35 @@ function App() {
             </button>
             {menuOpen && (
               <div className="menu-dropdown">
-                {menuLevel === 'group' && (
-                  <>
-                    {SYSTEM_GROUPS_HIDRAULICO.map((group) => (
-                      <button
-                        key={group.id}
-                        type="button"
-                        className={`menu-item${currentGroup === group.id ? ' active' : ''}`}
-                        onClick={() => {
-                          setCurrentGroup(group.id)
-                          if (group.id === 'control') {
-                            setHidraulicoSystemListGroup(null)
-                            setMenuOpen(false)
-                          } else if (group.id === 'gruta' || group.id === 'parque' || group.id === 'pozos') {
-                            setHidraulicoSystemListGroup(group.id)
-                            setMenuOpen(false)
-                            setMenuLevel('group')
-                          } else {
-                            setHidraulicoSystemListGroup(null)
-                            setMenuLevel('system')
-                          }
-                        }}
-                      >
-                        {group.label}
-                      </button>
-                    ))}
-                  </>
-                )}
-                {menuLevel === 'system' && (
-                  <>
-                    <div className="menu-header">
-                      <button type="button" className="menu-back" onClick={() => setMenuLevel('group')}>
-                        ← Grupos
-                      </button>
-                      <span className="menu-title">{currentGroupLabel}</span>
-      </div>
-                    {currentGroup === 'parque' && (sala4Systems.length > 0 || sala5Systems.length > 0) && (
-                      <div className="menu-subtitle">Resto de sistemas</div>
-                    )}
-                    {regularSystems.map((sys) => (
-                      <button
-                        key={sys.id}
-                        type="button"
-                        className={`menu-item${currentSystem === sys.id ? ' active' : ''}`}
-                        onClick={() => handleSelectSystem(sys.id)}
-                      >
-                        {sys.label}
-        </button>
-                    ))}
-                    {sala4Systems.length > 0 && (
-                      <>
-                        <div className="menu-subtitle">Sistemas Sala 4</div>
-                        {sala4Systems.map((sys) => (
-                          <button
-                            key={sys.id}
-                            type="button"
-                            className={`menu-item${currentSystem === sys.id ? ' active' : ''}`}
-                            onClick={() => handleSelectSystem(sys.id)}
-                          >
-                            {sys.label}
-                          </button>
-                        ))}
-                      </>
-                    )}
-                    {sala5Systems.length > 0 && (
-                      <>
-                        <div className="menu-subtitle">Sistemas Sala 5</div>
-                        {sala5Systems.map((sys) => (
-                          <button
-                            key={sys.id}
-                            type="button"
-                            className={`menu-item${currentSystem === sys.id ? ' active' : ''}`}
-                            onClick={() => handleSelectSystem(sys.id)}
-                          >
-                            {sys.label}
-                          </button>
-                        ))}
-                      </>
-                    )}
-                    {systemsForGroup.length === 0 && (
-                      <div className="menu-empty">No hay sistemas cargados.</div>
-                    )}
-                  </>
-                )}
-      </div>
+                {HIDRAULICO_HAMBURGER_GROUPS.map((group) => (
+                  <button
+                    key={group.id}
+                    type="button"
+                    className={`menu-item${
+                      group.id === 'sistemas'
+                        ? currentGroup !== 'control'
+                          ? ' active'
+                          : ''
+                        : currentGroup === 'control'
+                          ? ' active'
+                          : ''
+                    }`}
+                    onClick={() => {
+                      if (group.id === 'sistemas') {
+                        setCurrentGroup(hidraulicoLastSistemasArea)
+                        setHidraulicoSystemListGroup(hidraulicoLastSistemasArea)
+                        setMenuOpen(false)
+                      } else {
+                        setCurrentGroup('control')
+                        setHidraulicoSystemListGroup(null)
+                        setMenuOpen(false)
+                      }
+                    }}
+                  >
+                    {group.label}
+                  </button>
+                ))}
+              </div>
             )}
           </div>
           <div
@@ -7595,7 +7576,7 @@ function App() {
             </Box>
             {currentSystem === 'gruta1' && (
               <Box flexShrink={0} p={2} px={3} bg={panelBg} borderTopWidth="1px" borderColor={panelBorder} fontSize="11px" lineHeight="1.4" color={textMuted}>
-                <Text as="span">Cambiar de estado la bomba, el componente eléctrico o la cañería de succión de este sistema afecta al Sistema Hidro, para volver a funcionamiento el mismo debe volverse a funcionamiento el Sistema Hidro.</Text>
+                <Text as="span">Cambiar de estado la bomba, el componente eléctrico o la cañería de succión de este sistema afecta también al Sistema Hidro. Para volver a funcionamiento el mismo debe primero volverse a funcionamiento el Sistema Hidro.</Text>
               </Box>
             )}
           </Box>
@@ -7930,13 +7911,7 @@ function App() {
               <button
                 type="button"
                 className={`menu-button${menuOpen ? ' open' : ''}`}
-                onClick={() =>
-                  setMenuOpen((prev) => {
-                    const next = !prev
-                    if (next) setMenuLevel('group')
-                    return next
-                  })
-                }
+                onClick={() => setMenuOpen((prev) => !prev)}
                 aria-label="Abrir menú de sistemas"
               >
                 <span />
@@ -7945,89 +7920,34 @@ function App() {
               </button>
               {menuOpen && (
                 <div className="menu-dropdown">
-                  {menuLevel === 'group' && (
-                    <>
-                      {SYSTEM_GROUPS_HIDRAULICO.map((group) => (
-                        <button
-                          key={group.id}
-                          type="button"
-                          className={`menu-item${currentGroup === group.id ? ' active' : ''}`}
-                          onClick={() => {
-                            setCurrentGroup(group.id)
-                            if (group.id === 'control') {
-                              setHidraulicoSystemListGroup(null)
-                              setMenuOpen(false)
-                            } else if (group.id === 'gruta' || group.id === 'parque' || group.id === 'pozos') {
-                              setHidraulicoSystemListGroup(group.id)
-                              setMenuOpen(false)
-                              setMenuLevel('group')
-                            } else {
-                              setHidraulicoSystemListGroup(null)
-                              setMenuLevel('system')
-                            }
-                          }}
-                        >
-                          {group.label}
-                        </button>
-                      ))}
-                    </>
-                  )}
-                  {menuLevel === 'system' && (
-                    <>
-                      <div className="menu-header">
-                        <button type="button" className="menu-back" onClick={() => setMenuLevel('group')}>
-                          ← Grupos
-                        </button>
-                        <span className="menu-title">{currentGroupLabel}</span>
-                      </div>
-                      {currentGroup === 'parque' && (sala4Systems.length > 0 || sala5Systems.length > 0) && (
-                        <div className="menu-subtitle">Resto de sistemas</div>
-                      )}
-                      {regularSystems.map((sys) => (
-                        <button
-                          key={sys.id}
-                          type="button"
-                          className={`menu-item${currentSystem === sys.id ? ' active' : ''}`}
-                          onClick={() => handleSelectSystem(sys.id)}
-                        >
-                          {sys.label}
-                        </button>
-                      ))}
-                      {sala4Systems.length > 0 && (
-                        <>
-                          <div className="menu-subtitle">Sistemas Sala 4</div>
-                          {sala4Systems.map((sys) => (
-                            <button
-                              key={sys.id}
-                              type="button"
-                              className={`menu-item${currentSystem === sys.id ? ' active' : ''}`}
-                              onClick={() => handleSelectSystem(sys.id)}
-                            >
-                              {sys.label}
-                            </button>
-                          ))}
-                        </>
-                      )}
-                      {sala5Systems.length > 0 && (
-                        <>
-                          <div className="menu-subtitle">Sistemas Sala 5</div>
-                          {sala5Systems.map((sys) => (
-                            <button
-                              key={sys.id}
-                              type="button"
-                              className={`menu-item${currentSystem === sys.id ? ' active' : ''}`}
-                              onClick={() => handleSelectSystem(sys.id)}
-                            >
-                              {sys.label}
-                            </button>
-                          ))}
-                        </>
-                      )}
-                      {systemsForGroup.length === 0 && (
-                        <div className="menu-empty">No hay sistemas cargados.</div>
-                      )}
-                    </>
-                  )}
+                  {HIDRAULICO_HAMBURGER_GROUPS.map((group) => (
+                    <button
+                      key={group.id}
+                      type="button"
+                      className={`menu-item${
+                        group.id === 'sistemas'
+                          ? currentGroup !== 'control'
+                            ? ' active'
+                            : ''
+                          : currentGroup === 'control'
+                            ? ' active'
+                            : ''
+                      }`}
+                      onClick={() => {
+                        if (group.id === 'sistemas') {
+                          setCurrentGroup(hidraulicoLastSistemasArea)
+                          setHidraulicoSystemListGroup(hidraulicoLastSistemasArea)
+                          setMenuOpen(false)
+                        } else {
+                          setCurrentGroup('control')
+                          setHidraulicoSystemListGroup(null)
+                          setMenuOpen(false)
+                        }
+                      }}
+                    >
+                      {group.label}
+                    </button>
+                  ))}
                 </div>
               )}
             </div>
@@ -8273,7 +8193,7 @@ function App() {
               </Box>
               {currentSystem === 'gruta1' && (
                 <Box flexShrink={0} p={2} px={3} bg={panelBg} borderTopWidth="1px" borderColor={panelBorder} fontSize="xs" lineHeight="1.4" color={textMuted}>
-                  <Text as="span">Cambiar de estado la bomba, el componente eléctrico o la cañería de succión de este sistema afecta al Sistema Hidro, para volver a funcionamiento el mismo debe volverse a funcionamiento el Sistema Hidro.</Text>
+                  <Text as="span">Cambiar de estado la bomba, el componente eléctrico o la cañería de succión de este sistema afecta también al Sistema Hidro. Para volver a funcionamiento el mismo debe primero volverse a funcionamiento el Sistema Hidro.</Text>
                 </Box>
               )}
             </Box>
