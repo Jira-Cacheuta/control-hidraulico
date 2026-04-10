@@ -441,3 +441,41 @@ pm2 restart all
 Si en el servidor faltan CH-695 y CH-696 en `.env`: `nano .env`, agregar al final de `JIRA_ISSUE_KEYS` `,CH-695,CH-696`, guardar, luego `pm2 restart all`.
 
 **Verificar:** `http://3.138.205.241` (o con `:4000` si el backend sigue en 4000) — Gruta Nº1 con recuadro abajo; Gruta Nº3 con CH-695 y CH-696 mostrando estado y el servicio con summary y estado debajo del ícono.
+
+## Resumen clave (chat actual) - Alimentacion de agua + modo oscuro
+
+- Se estabilizo el flujo de **Alimentacion de agua** en llaves rojas y su reflejo en **Pozos**:
+  - Persistencia de relaciones activas por pozo (Pozo 19, Lalo, Luisa).
+  - Soporte correcto para multiples sistemas activos en un mismo pozo.
+  - Correcciones para aparicion/desaparicion coherente al guardar, cambiar o quitar alimentaciones.
+- Se agregaron/ajustaron los nodos amarillos de feed (`waterFeed`) y sus conexiones:
+  - Sin linea punteada (linea solida).
+  - Conexion al handle inferior del nodo circular verde de caneria (`in-bottom`).
+  - Mejor estabilidad frente a zoom/pan y actualizaciones.
+- Backend:
+  - Endpoint `GET /api/water-feeds` en `ch_backend/src/index.js` para leer relaciones activas desde Jira (links tipo blocks/is blocked by entre canerias de pozo y llaves rojas).
+- Frontend principal (`ch_web/src/App.tsx`):
+  - Ajustes de estado para `waterFeedSelections`, `waterFeedLinks`, `stickyPozoFeedRelations`.
+  - Mejoras de sincronizacion/optimismo para que el modal y el diagrama reflejen cambios rapidamente.
+  - Correcciones de visualizacion de relaciones al combinar datos remotos + seleccion local.
+- Nodo custom (`ch_web/src/nodes/CustomNodes.tsx`):
+  - Se agrego `Handle` target inferior en `PipeSegmentNode` (`id: in-bottom`).
+  - Nuevo/ajustado `WaterFeedNode`.
+- Modo oscuro (UI completa):
+  - Toggle claro/oscuro persistente con `localStorage` (`ch_theme_mode`).
+  - Boton compacto `☀️🌙` al lado izquierdo del badge del sistema.
+  - Aplicado en vistas de diagrama/listas (Servicios y Control), menu, paneles y fondo de ReactFlow.
+  - Aplicado tambien en modales (incluyendo portal de Chakra usando clase `ch-dark` en `body`).
+  - Mejoras de contraste en botones de modal (Cancelar/Confirmar/Guardar), selects/options y buscador de Servicios.
+- Ajustes finales de legibilidad:
+  - `Comp. Electrico` externo al icono mejorado en dark mode mediante variable CSS (`--ch-external-label-color`).
+  - En **Sistema Gruta N°4**, bomba ajustada para verse dentro del icono en dos lineas:
+    - `Bomba`
+    - `sumergible`
+
+## Commits y push ya realizados en GitHub
+
+- `fd9c9cc` - Alimentacion de agua: estabilizar relaciones en Pozos y sumar modo oscuro configurable.
+- `cc04c29` - Ajustar visual de Gruta 4 y contraste en modo oscuro.
+
+Ambos commits ya fueron pusheados a `origin/main`.

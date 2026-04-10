@@ -119,8 +119,9 @@ const SYSTEMS = [
   { id: 'parqueJfv3', label: 'Sistema 3-JFV', group: 'parque' },
   { id: 'parqueDuchas4', label: 'Sistema 4-Duchas', group: 'parque' },
   { id: 'parqueAguaTibia', label: 'Sistema Agua Tibia', group: 'parque' },
-  { id: 'parqueInteractivo', label: 'Sistema Interactivo', group: 'parque' },
-  { id: 'parqueBurbuja', label: 'Sistema Burbuja principal', group: 'parque' },
+  { id: 'parqueInteractivo', label: 'Sistema Interactivo', group: 'parque', subgroup: 'parqueCircuito' },
+  { id: 'parqueBurbuja', label: 'Sistema Burbuja principal', group: 'parque', subgroup: 'parqueCircuito' },
+  { id: 'parqueLosaRadiante', label: 'Sistema Losa radiante parque', group: 'parque', subgroup: 'parqueCircuito' },
   { id: 'parqueBurbujaBanos', label: 'Sistema Burbuja baños', group: 'parque' },
   { id: 'parqueBurbujaExt', label: 'Sistema Burbuja ext', group: 'parque', subgroup: 'sala5' },
   { id: 'parqueMedialunaExt', label: 'Sistema Medialuna ext', group: 'parque', subgroup: 'sala5' },
@@ -171,6 +172,7 @@ const PUMP_NODE_TO_PUESTO_KEY: Record<string, string> = {
   'agua-fria-bomba': 'CH-914',
   'parque-aguatibia-bomba': 'CH-1048',
   'parque-interactivo-bomba': 'CH-1082',
+  'parque-losaradiante-bomba': 'CH-1191',
   'parque-burbuja-soplador': 'CH-1088',
   'parque-burbujabanos-soplador': 'CH-1094',
   'parque-burbujaext-soplador': 'CH-1100',
@@ -3175,6 +3177,97 @@ const parqueInteractivoEdgesInitial: Edge[] = [
   }
 ]
 
+const parqueLosaRadianteNodesInitial: Node[] = [
+  {
+    id: 'parque-losaradiante-succion',
+    type: 'suction',
+    position: { x: 320, y: 80 },
+    draggable: false,
+    data: { label: 'Cañería Succión', issueKey: 'CH-1188' }
+  },
+  {
+    id: 'parque-losaradiante-electrico',
+    type: 'electric',
+    position: { x: 120, y: 220 },
+    draggable: false,
+    data: { label: 'Comp. Eléctrico', issueKey: 'CH-1189' }
+  },
+  {
+    id: 'parque-losaradiante-bomba',
+    type: 'pump',
+    position: { x: 140, y: 90 },
+    draggable: false,
+    data: { label: 'Bomba', issueKey: 'CH-1190' }
+  },
+  {
+    id: 'parque-losaradiante-puesto',
+    type: 'station',
+    position: { x: 320, y: 220 },
+    draggable: false,
+    data: { label: 'Puesto', issueKey: 'CH-1191' }
+  },
+  {
+    id: 'parque-losaradiante-ramal1192',
+    type: 'pipeSegment',
+    position: { x: 320, y: 360 },
+    draggable: false,
+    data: { issueKey: 'CH-1192' }
+  },
+  {
+    id: 'parque-losaradiante-servicio1193',
+    type: 'service',
+    position: { x: 295, y: 460 },
+    draggable: false,
+    data: { label: 'Losa radiante\nparque', issueKey: 'CH-1193', statusBottom: -14 }
+  }
+]
+
+const parqueLosaRadianteEdgesInitial: Edge[] = [
+  {
+    id: 'parque-losaradiante-succion-puesto',
+    source: 'parque-losaradiante-succion',
+    target: 'parque-losaradiante-puesto',
+    targetHandle: 'in-top',
+    type: 'straight',
+    style: { stroke: '#4A90E2', strokeWidth: 10 }
+  },
+  {
+    id: 'parque-losaradiante-electrico-puesto',
+    source: 'parque-losaradiante-electrico',
+    target: 'parque-losaradiante-puesto',
+    targetHandle: 'in-left',
+    type: 'straight',
+    style: { stroke: '#F87171', strokeWidth: 5, strokeDasharray: '8 8' }
+  },
+  {
+    id: 'parque-losaradiante-bomba-puesto',
+    source: 'parque-losaradiante-bomba',
+    sourceHandle: 'out-diag',
+    target: 'parque-losaradiante-puesto',
+    targetHandle: 'in-diag',
+    type: 'straight',
+    style: { stroke: '#4A90E2', strokeWidth: 10 }
+  },
+  {
+    id: 'parque-losaradiante-puesto-1192',
+    source: 'parque-losaradiante-puesto',
+    sourceHandle: 'out-bottom',
+    target: 'parque-losaradiante-ramal1192',
+    targetHandle: 'in-top',
+    type: 'straight',
+    style: { stroke: '#4A90E2', strokeWidth: 10 }
+  },
+  {
+    id: 'parque-losaradiante-1192-1193',
+    source: 'parque-losaradiante-ramal1192',
+    sourceHandle: 'out-bottom',
+    target: 'parque-losaradiante-servicio1193',
+    targetHandle: 'in-top',
+    type: 'straight',
+    style: { stroke: '#4A90E2', strokeWidth: 8, strokeLinecap: 'round' }
+  }
+]
+
 const parqueBurbujaNodesInitial: Node[] = [
   {
     id: 'parque-burbuja-electrico',
@@ -3937,6 +4030,7 @@ const ALL_SYSTEM_NODES: { systemId: string; nodes: Node[] }[] = [
   { systemId: 'parqueAguaTibia', nodes: parqueAguaTibiaNodesInitial },
   { systemId: 'parqueInteractivo', nodes: parqueInteractivoNodesInitial },
   { systemId: 'parqueBurbuja', nodes: parqueBurbujaNodesInitial },
+  { systemId: 'parqueLosaRadiante', nodes: parqueLosaRadianteNodesInitial },
   { systemId: 'parqueBurbujaBanos', nodes: parqueBurbujaBanosNodesInitial },
   { systemId: 'parqueBurbujaExt', nodes: parqueBurbujaExtNodesInitial },
   { systemId: 'parqueMedialunaExt', nodes: parqueMedialunaExtNodesInitial },
@@ -3953,6 +4047,53 @@ const ALL_SYSTEM_NODES: { systemId: string; nodes: Node[] }[] = [
   { systemId: 'pozoLalo', nodes: pozoLaloNodesInitial },
   { systemId: 'pozoLuisa', nodes: pozoLuisaNodesInitial }
 ]
+
+/** Todas las issueKey definidas en nodos del diagrama (más bombas activas y alimentación de agua en el poll). Así el front no depende solo de JIRA_ISSUE_KEYS en el servidor. */
+const DIAGRAM_ISSUE_KEYS: string[] = (() => {
+  const set = new Set<string>()
+  for (const { nodes } of ALL_SYSTEM_NODES) {
+    for (const node of nodes) {
+      const k = (node.data as { issueKey?: string } | undefined)?.issueKey
+      if (typeof k === 'string' && k.trim()) set.add(k.trim())
+    }
+  }
+  return Array.from(set)
+})()
+
+/** Clasificación de nodos `pump` del diagrama (lista Sistemas). */
+type PumpEquipKind = 'bomba' | 'soplador' | 'lanchon'
+
+const PUMP_EQUIP_LABEL: Record<PumpEquipKind, string> = {
+  bomba: 'Bomba',
+  soplador: 'Soplador',
+  lanchon: 'Lanchón'
+}
+
+const PUMP_EQUIP_ORDER: PumpEquipKind[] = ['bomba', 'soplador', 'lanchon']
+
+function classifyDiagramPumpNode(node: Node): PumpEquipKind | null {
+  if (node.type !== 'pump') return null
+  const id = (node.id || '').toLowerCase()
+  const label = normalizeForSearch(String((node.data as { label?: string })?.label ?? ''))
+  if (id.includes('lanchon') || label.includes('lanchon')) return 'lanchon'
+  if (id.includes('soplador') || label.includes('soplador')) return 'soplador'
+  if (id.includes('bomba') || label.includes('bomba')) return 'bomba'
+  return 'bomba'
+}
+
+/** Por `systemId`: qué tipos de equipo (nodo estrella) tiene el diagrama. */
+const SYSTEM_EQUIPMENT_KINDS: Record<string, Set<PumpEquipKind>> = (() => {
+  const map: Record<string, Set<PumpEquipKind>> = {}
+  for (const { systemId, nodes } of ALL_SYSTEM_NODES) {
+    const set = new Set<PumpEquipKind>()
+    for (const node of nodes) {
+      const k = classifyDiagramPumpNode(node)
+      if (k) set.add(k)
+    }
+    map[systemId] = set
+  }
+  return map
+})()
 
 /** IDs del bloque que parte de la barra azul (manifold) en Gruta Nº1; en desktop se desplazan hacia abajo para no superponer la Llave. */
 const GRUTA1_BELOW_MANIFOLD_IDS = new Set([
@@ -4026,6 +4167,11 @@ const PARQUE_AGUATIBIA_DESKTOP_OFFSET_Y: Record<string, number> = {
 /** Sistema Interactivo (parque, desktop): bajar cañería CH-1083 y el servicio que baja de la misma. */
 const PARQUE_INTERACTIVO_DESKTOP_OFFSET_Y: Record<string, number> = {
   'parque-interactivo-ramal1083': 40, 'parque-interactivo-servicio1084': 40
+}
+/** Sistema Losa radiante parque (desktop): bajar cañería y servicio bajo el puesto. */
+const PARQUE_LOSA_RADIANTE_DESKTOP_OFFSET_Y: Record<string, number> = {
+  'parque-losaradiante-ramal1192': 40,
+  'parque-losaradiante-servicio1193': 40
 }
 /** Sistema Burbuja principal (parque, desktop): bajar cañería que baja del puesto y el servicio. */
 const PARQUE_BURBUJA_DESKTOP_OFFSET_Y: Record<string, number> = {
@@ -4109,6 +4255,10 @@ function App() {
   const [parqueInteractivoEdges, , onParqueInteractivoEdgesChange] = useEdgesState(parqueInteractivoEdgesInitial)
   const [parqueBurbujaNodes, setParqueBurbujaNodes, onParqueBurbujaNodesChange] = useNodesState(parqueBurbujaNodesInitial)
   const [parqueBurbujaEdges, , onParqueBurbujaEdgesChange] = useEdgesState(parqueBurbujaEdgesInitial)
+  const [parqueLosaRadianteNodes, setParqueLosaRadianteNodes, onParqueLosaRadianteNodesChange] = useNodesState(
+    parqueLosaRadianteNodesInitial
+  )
+  const [parqueLosaRadianteEdges, , onParqueLosaRadianteEdgesChange] = useEdgesState(parqueLosaRadianteEdgesInitial)
   const [parqueBurbujaBanosNodes, setParqueBurbujaBanosNodes, onParqueBurbujaBanosNodesChange] = useNodesState(parqueBurbujaBanosNodesInitial)
   const [parqueBurbujaBanosEdges, , onParqueBurbujaBanosEdgesChange] = useEdgesState(parqueBurbujaBanosEdgesInitial)
   const [parqueBurbujaExtNodes, setParqueBurbujaExtNodes, onParqueBurbujaExtNodesChange] = useNodesState(parqueBurbujaExtNodesInitial)
@@ -4184,6 +4334,7 @@ function App() {
   /** Al volver a abrir “Sistemas” desde el menú, restaurar este filtro. */
   const [hidraulicoLastSistemasArea, setHidraulicoLastSistemasArea] = useState<'gruta' | 'parque' | 'pozos'>('gruta')
   const [hidraulicoSystemsQuery, setHidraulicoSystemsQuery] = useState('')
+  const [hidraulicoEquipFilter, setHidraulicoEquipFilter] = useState<PumpEquipKind[]>([])
   const [controlIssues, setControlIssues] = useState<
     Array<{ key: string; summary?: string; status?: string; issueType?: string; epicKey?: string; epicSummary?: string; sector?: string }>
   >([])
@@ -4406,35 +4557,37 @@ function App() {
                                       ? parqueInteractivoNodes
                                       : currentSystem === 'parqueBurbuja'
                                         ? parqueBurbujaNodes
-                                        : currentSystem === 'parqueBurbujaBanos'
-                                          ? parqueBurbujaBanosNodes
-                                          : currentSystem === 'parqueBurbujaExt'
-                                            ? parqueBurbujaExtNodes
-                                            : currentSystem === 'parqueMedialunaExt'
-                                              ? parqueMedialunaExtNodes
-                                              : currentSystem === 'parqueCascada'
-                                                ? parqueCascadaNodes
-                                                : currentSystem === 'parqueSala2'
-                                                  ? parqueSala2Nodes
-                                                  : currentSystem === 'parqueSala3'
-                                                    ? parqueSala3Nodes
-                                                    : currentSystem === 'parqueSala4'
-                                                      ? parqueSala4Nodes
-                                                      : currentSystem === 'parqueTobogan3'
-                                                        ? parqueTobogan3Nodes
-                                                        : currentSystem === 'parqueCascadaOlas'
-                                                          ? parqueCascadaOlasNodes
-                                                          : currentSystem === 'parqueChorrosOlas'
-                                                            ? parqueChorrosOlasNodes
-                                                            : currentSystem === 'parqueAguaFriaParque'
-                                                              ? parqueAguaFriaParqueNodes
-                                                              : currentSystem === 'pozo19'
-                                                              ? pozo19Nodes
-                                                              : currentSystem === 'pozoLalo'
-                                                                ? pozoLaloNodes
-                                                                : currentSystem === 'pozoLuisa'
-                                                                  ? pozoLuisaNodes
-                                                                  : parqueSala1Nodes
+                                        : currentSystem === 'parqueLosaRadiante'
+                                          ? parqueLosaRadianteNodes
+                                          : currentSystem === 'parqueBurbujaBanos'
+                                            ? parqueBurbujaBanosNodes
+                                            : currentSystem === 'parqueBurbujaExt'
+                                              ? parqueBurbujaExtNodes
+                                              : currentSystem === 'parqueMedialunaExt'
+                                                ? parqueMedialunaExtNodes
+                                                : currentSystem === 'parqueCascada'
+                                                  ? parqueCascadaNodes
+                                                  : currentSystem === 'parqueSala2'
+                                                    ? parqueSala2Nodes
+                                                    : currentSystem === 'parqueSala3'
+                                                      ? parqueSala3Nodes
+                                                      : currentSystem === 'parqueSala4'
+                                                        ? parqueSala4Nodes
+                                                        : currentSystem === 'parqueTobogan3'
+                                                          ? parqueTobogan3Nodes
+                                                          : currentSystem === 'parqueCascadaOlas'
+                                                            ? parqueCascadaOlasNodes
+                                                            : currentSystem === 'parqueChorrosOlas'
+                                                              ? parqueChorrosOlasNodes
+                                                              : currentSystem === 'parqueAguaFriaParque'
+                                                                ? parqueAguaFriaParqueNodes
+                                                                : currentSystem === 'pozo19'
+                                                                  ? pozo19Nodes
+                                                                  : currentSystem === 'pozoLalo'
+                                                                    ? pozoLaloNodes
+                                                                    : currentSystem === 'pozoLuisa'
+                                                                      ? pozoLuisaNodes
+                                                                      : parqueSala1Nodes
   const activeEdges =
     currentSystem === 'gruta1'
       ? grutaEdges
@@ -4476,35 +4629,37 @@ function App() {
                                       ? parqueInteractivoEdges
                                       : currentSystem === 'parqueBurbuja'
                                         ? parqueBurbujaEdges
-                                        : currentSystem === 'parqueBurbujaBanos'
-                                          ? parqueBurbujaBanosEdges
-                                          : currentSystem === 'parqueBurbujaExt'
-                                            ? parqueBurbujaExtEdges
-                                            : currentSystem === 'parqueMedialunaExt'
-                                              ? parqueMedialunaExtEdges
-                                              : currentSystem === 'parqueCascada'
-                                                ? parqueCascadaEdges
-                                                : currentSystem === 'parqueSala2'
-                                                  ? parqueSala2Edges
-                                                  : currentSystem === 'parqueSala3'
-                                                    ? parqueSala3Edges
-                                                    : currentSystem === 'parqueSala4'
-                                                      ? parqueSala4Edges
-                                                      : currentSystem === 'parqueTobogan3'
-                                                        ? parqueTobogan3Edges
-                                                        : currentSystem === 'parqueCascadaOlas'
-                                                          ? parqueCascadaOlasEdges
-                                                          : currentSystem === 'parqueChorrosOlas'
-                                                            ? parqueChorrosOlasEdges
-                                                            : currentSystem === 'parqueAguaFriaParque'
-                                                              ? parqueAguaFriaParqueEdges
-                                                              : currentSystem === 'pozo19'
-                                                              ? pozo19Edges
-                                                              : currentSystem === 'pozoLalo'
-                                                                ? pozoLaloEdges
-                                                                : currentSystem === 'pozoLuisa'
-                                                                  ? pozoLuisaEdges
-                                                                  : parqueSala1Edges
+                                        : currentSystem === 'parqueLosaRadiante'
+                                          ? parqueLosaRadianteEdges
+                                          : currentSystem === 'parqueBurbujaBanos'
+                                            ? parqueBurbujaBanosEdges
+                                            : currentSystem === 'parqueBurbujaExt'
+                                              ? parqueBurbujaExtEdges
+                                              : currentSystem === 'parqueMedialunaExt'
+                                                ? parqueMedialunaExtEdges
+                                                : currentSystem === 'parqueCascada'
+                                                  ? parqueCascadaEdges
+                                                  : currentSystem === 'parqueSala2'
+                                                    ? parqueSala2Edges
+                                                    : currentSystem === 'parqueSala3'
+                                                      ? parqueSala3Edges
+                                                      : currentSystem === 'parqueSala4'
+                                                        ? parqueSala4Edges
+                                                        : currentSystem === 'parqueTobogan3'
+                                                          ? parqueTobogan3Edges
+                                                          : currentSystem === 'parqueCascadaOlas'
+                                                            ? parqueCascadaOlasEdges
+                                                            : currentSystem === 'parqueChorrosOlas'
+                                                              ? parqueChorrosOlasEdges
+                                                              : currentSystem === 'parqueAguaFriaParque'
+                                                                ? parqueAguaFriaParqueEdges
+                                                                : currentSystem === 'pozo19'
+                                                                  ? pozo19Edges
+                                                                  : currentSystem === 'pozoLalo'
+                                                                    ? pozoLaloEdges
+                                                                    : currentSystem === 'pozoLuisa'
+                                                                      ? pozoLuisaEdges
+                                                                      : parqueSala1Edges
   const activeOnNodesChange =
     currentSystem === 'gruta1'
       ? onGrutaNodesChange
@@ -4546,35 +4701,37 @@ function App() {
                                       ? onParqueInteractivoNodesChange
                                       : currentSystem === 'parqueBurbuja'
                                         ? onParqueBurbujaNodesChange
-                                        : currentSystem === 'parqueBurbujaBanos'
-                                          ? onParqueBurbujaBanosNodesChange
-                                          : currentSystem === 'parqueBurbujaExt'
-                                            ? onParqueBurbujaExtNodesChange
-                                            : currentSystem === 'parqueMedialunaExt'
-                                              ? onParqueMedialunaExtNodesChange
-                                              : currentSystem === 'parqueCascada'
-                                                ? onParqueCascadaNodesChange
-                                                : currentSystem === 'parqueSala2'
-                                                  ? onParqueSala2NodesChange
-                                                  : currentSystem === 'parqueSala3'
-                                                    ? onParqueSala3NodesChange
-                                                    : currentSystem === 'parqueSala4'
-                                                      ? onParqueSala4NodesChange
-                                                      : currentSystem === 'parqueTobogan3'
-                                                        ? onParqueTobogan3NodesChange
-                                                        : currentSystem === 'parqueCascadaOlas'
-                                                          ? onParqueCascadaOlasNodesChange
-                                                          : currentSystem === 'parqueChorrosOlas'
-                                                            ? onParqueChorrosOlasNodesChange
-                                                            : currentSystem === 'parqueAguaFriaParque'
-                                                              ? onParqueAguaFriaParqueNodesChange
-                                                              : currentSystem === 'pozo19'
-                                                              ? onPozo19NodesChange
-                                                              : currentSystem === 'pozoLalo'
-                                                                ? onPozoLaloNodesChange
-                                                                : currentSystem === 'pozoLuisa'
-                                                                  ? onPozoLuisaNodesChange
-                                                                  : onParqueSala1NodesChange
+                                        : currentSystem === 'parqueLosaRadiante'
+                                          ? onParqueLosaRadianteNodesChange
+                                          : currentSystem === 'parqueBurbujaBanos'
+                                            ? onParqueBurbujaBanosNodesChange
+                                            : currentSystem === 'parqueBurbujaExt'
+                                              ? onParqueBurbujaExtNodesChange
+                                              : currentSystem === 'parqueMedialunaExt'
+                                                ? onParqueMedialunaExtNodesChange
+                                                : currentSystem === 'parqueCascada'
+                                                  ? onParqueCascadaNodesChange
+                                                  : currentSystem === 'parqueSala2'
+                                                    ? onParqueSala2NodesChange
+                                                    : currentSystem === 'parqueSala3'
+                                                      ? onParqueSala3NodesChange
+                                                      : currentSystem === 'parqueSala4'
+                                                        ? onParqueSala4NodesChange
+                                                        : currentSystem === 'parqueTobogan3'
+                                                          ? onParqueTobogan3NodesChange
+                                                          : currentSystem === 'parqueCascadaOlas'
+                                                            ? onParqueCascadaOlasNodesChange
+                                                            : currentSystem === 'parqueChorrosOlas'
+                                                              ? onParqueChorrosOlasNodesChange
+                                                              : currentSystem === 'parqueAguaFriaParque'
+                                                                ? onParqueAguaFriaParqueNodesChange
+                                                                : currentSystem === 'pozo19'
+                                                                  ? onPozo19NodesChange
+                                                                  : currentSystem === 'pozoLalo'
+                                                                    ? onPozoLaloNodesChange
+                                                                    : currentSystem === 'pozoLuisa'
+                                                                      ? onPozoLuisaNodesChange
+                                                                      : onParqueSala1NodesChange
   const activeOnEdgesChange =
     currentSystem === 'gruta1'
       ? onGrutaEdgesChange
@@ -4616,35 +4773,37 @@ function App() {
                                       ? onParqueInteractivoEdgesChange
                                       : currentSystem === 'parqueBurbuja'
                                         ? onParqueBurbujaEdgesChange
-                                        : currentSystem === 'parqueBurbujaBanos'
-                                          ? onParqueBurbujaBanosEdgesChange
-                                          : currentSystem === 'parqueBurbujaExt'
-                                            ? onParqueBurbujaExtEdgesChange
-                                          : currentSystem === 'parqueMedialunaExt'
-                                            ? onParqueMedialunaExtEdgesChange
-                                            : currentSystem === 'parqueCascada'
-                                              ? onParqueCascadaEdgesChange
-                                              : currentSystem === 'parqueSala2'
-                                                ? onParqueSala2EdgesChange
-                                                : currentSystem === 'parqueSala3'
-                                                  ? onParqueSala3EdgesChange
-                                                    : currentSystem === 'parqueSala4'
-                                                    ? onParqueSala4EdgesChange
-                                                    : currentSystem === 'parqueTobogan3'
-                                                      ? onParqueTobogan3EdgesChange
-                                                      : currentSystem === 'parqueCascadaOlas'
-                                                        ? onParqueCascadaOlasEdgesChange
-                                                        : currentSystem === 'parqueChorrosOlas'
-                                                          ? onParqueChorrosOlasEdgesChange
-                                                          : currentSystem === 'parqueAguaFriaParque'
-                                                            ? onParqueAguaFriaParqueEdgesChange
-                                                            : currentSystem === 'pozo19'
-                                                            ? onPozo19EdgesChange
-                                                            : currentSystem === 'pozoLalo'
-                                                              ? onPozoLaloEdgesChange
-                                                              : currentSystem === 'pozoLuisa'
-                                                                ? onPozoLuisaEdgesChange
-                                                                : onParqueSala1EdgesChange
+                                        : currentSystem === 'parqueLosaRadiante'
+                                          ? onParqueLosaRadianteEdgesChange
+                                          : currentSystem === 'parqueBurbujaBanos'
+                                            ? onParqueBurbujaBanosEdgesChange
+                                            : currentSystem === 'parqueBurbujaExt'
+                                              ? onParqueBurbujaExtEdgesChange
+                                              : currentSystem === 'parqueMedialunaExt'
+                                                ? onParqueMedialunaExtEdgesChange
+                                                : currentSystem === 'parqueCascada'
+                                                  ? onParqueCascadaEdgesChange
+                                                  : currentSystem === 'parqueSala2'
+                                                    ? onParqueSala2EdgesChange
+                                                    : currentSystem === 'parqueSala3'
+                                                      ? onParqueSala3EdgesChange
+                                                      : currentSystem === 'parqueSala4'
+                                                        ? onParqueSala4EdgesChange
+                                                        : currentSystem === 'parqueTobogan3'
+                                                          ? onParqueTobogan3EdgesChange
+                                                          : currentSystem === 'parqueCascadaOlas'
+                                                            ? onParqueCascadaOlasEdgesChange
+                                                            : currentSystem === 'parqueChorrosOlas'
+                                                              ? onParqueChorrosOlasEdgesChange
+                                                              : currentSystem === 'parqueAguaFriaParque'
+                                                                ? onParqueAguaFriaParqueEdgesChange
+                                                                : currentSystem === 'pozo19'
+                                                                  ? onPozo19EdgesChange
+                                                                  : currentSystem === 'pozoLalo'
+                                                                    ? onPozoLaloEdgesChange
+                                                                    : currentSystem === 'pozoLuisa'
+                                                                      ? onPozoLuisaEdgesChange
+                                                                      : onParqueSala1EdgesChange
 
   const hiddenPumpNodeIds = useMemo(() => {
     const hidden = new Set<string>()
@@ -4746,6 +4905,13 @@ function App() {
     if (currentSystem === 'parqueInteractivo') {
       return filteredActiveNodes.map((node) => {
         const offset = PARQUE_INTERACTIVO_DESKTOP_OFFSET_Y[node.id]
+        if (offset === undefined) return node
+        return { ...node, position: { ...node.position, y: node.position.y + offset } }
+      })
+    }
+    if (currentSystem === 'parqueLosaRadiante') {
+      return filteredActiveNodes.map((node) => {
+        const offset = PARQUE_LOSA_RADIANTE_DESKTOP_OFFSET_Y[node.id]
         if (offset === undefined) return node
         return { ...node, position: { ...node.position, y: node.position.y + offset } }
       })
@@ -4966,14 +5132,24 @@ function App() {
 
   const loadIssues = useCallback(async () => {
     try {
-      const [issuesRes, pumpsMap, waterRes, waterLinksRes] = await Promise.all([
-        fetch(`${API_BASE_URL}/api/issues`),
-        fetchPumpsBatch(),
-        fetch(`${API_BASE_URL}/api/issues?keys=${WATER_FIELD_ISSUE_KEYS.join(',')}`),
+      const pumpsMap = await fetchPumpsBatch()
+      const keySet = new Set<string>(DIAGRAM_ISSUE_KEYS)
+      for (const k of WATER_FIELD_ISSUE_KEYS) {
+        keySet.add(k)
+      }
+      for (const v of Object.values(pumpsMap)) {
+        if (typeof v === 'string' && v.trim()) keySet.add(v.trim())
+      }
+      const keysParam = Array.from(keySet).join(',')
+      const issuesUrl =
+        keysParam.length > 0
+          ? `${API_BASE_URL}/api/issues?keys=${encodeURIComponent(keysParam)}`
+          : `${API_BASE_URL}/api/issues`
+      const [issuesRes, waterLinksRes] = await Promise.all([
+        fetch(issuesUrl),
         fetch(`${API_BASE_URL}/api/water-feeds?t=${Date.now()}`, { cache: 'no-store' })
       ])
       const data = await issuesRes.json()
-      const waterData = await waterRes.json().catch(() => ({ issues: [] }))
       const waterLinksData = waterLinksRes.ok
         ? await waterLinksRes.json().catch(() => null)
         : null
@@ -4996,9 +5172,9 @@ function App() {
           }
         })
       }
-      if (Array.isArray(waterData.issues)) {
+      if (Array.isArray(data.issues)) {
         const nextSelections: Record<string, string[]> = {}
-        for (const issue of waterData.issues) {
+        for (const issue of data.issues) {
           if (!issue?.key || !WATER_FIELD_ISSUE_KEYS.includes(issue.key)) continue
           nextSelections[issue.key] = extractWaterFieldValues(issue?.customfield_11815)
         }
@@ -5014,19 +5190,9 @@ function App() {
           })
         }
       }
-      for (const issue of waterData.issues || []) {
-        if (issue?.key && WATER_FIELD_ISSUE_KEYS.includes(issue.key)) {
-          const prev = map.get(issue.key) || {}
-          map.set(issue.key, {
-            ...prev,
-            status: issue?.status?.name ?? prev.status,
-            summary: issue?.summary ?? prev.summary,
-            waterField: issue?.customfield_11815
-          })
-        }
-      }
       const applyIssueData = (prev: Node[]) =>
         prev.map((node) => {
+          const basePumpKey = node.type === 'pump' ? (node.data?.issueKey as string | undefined) : undefined
           let key = node.data?.issueKey as string | undefined
           let activePumpKey: string | null = null
           if (node.type === 'pump' && key) {
@@ -5038,7 +5204,10 @@ function App() {
             }
           }
           if (!key) return node
-          const issueData = map.get(key)
+          let issueData = map.get(key)
+          if (!issueData && node.type === 'pump' && basePumpKey && basePumpKey !== key) {
+            issueData = map.get(basePumpKey)
+          }
           if (!issueData) return node
           const nextData = { ...node.data }
           if (issueData.status && nextData.status !== issueData.status) {
@@ -5047,10 +5216,11 @@ function App() {
           if (typeof issueData.waterField !== 'undefined' && nextData.customfield_11815 !== issueData.waterField) {
             nextData.customfield_11815 = issueData.waterField
           }
-          // Para nodos pump: reflejar la bomba activa (key + summary) desde Jira
           if (node.type === 'pump' && activePumpKey) {
             nextData.issueKey = activePumpKey
-            if (issueData.summary) nextData.summary = issueData.summary
+          }
+          if (node.type === 'pump' && issueData.summary) {
+            nextData.summary = issueData.summary
           }
           // Para nodos service, waveService y cloudService: mostrar el summary de Jira como label
           if ((node.type === 'service' || node.type === 'waveService' || node.type === 'cloudService') && issueData.summary) nextData.label = issueData.summary
@@ -5076,6 +5246,7 @@ function App() {
       setParqueAguaTibiaNodes(applyIssueData)
       setParqueInteractivoNodes(applyIssueData)
       setParqueBurbujaNodes(applyIssueData)
+      setParqueLosaRadianteNodes(applyIssueData)
       setParqueBurbujaBanosNodes(applyIssueData)
       setParqueBurbujaExtNodes(applyIssueData)
       setParqueMedialunaExtNodes(applyIssueData)
@@ -5094,7 +5265,7 @@ function App() {
     } catch {
       // Silenciar errores de polling
     }
-  }, [fetchPumpsBatch, setGrutaNodes, setHidroNodes, setGruta2Nodes, setGruta3Nodes, setGruta4Nodes, setFangoEsteNodes, setFangoOesteNodes, setAljibeFangoNodes, setAscensorNodes, setCacheutinaNodes, setChorroCacheutinaNodes, setCascadaNodes, setAguaFriaNodes, setParqueArriba1Nodes, setParqueBtv2Nodes, setParqueJfv3Nodes, setParqueDuchas4Nodes, setParqueAguaTibiaNodes, setParqueInteractivoNodes, setParqueBurbujaNodes, setParqueBurbujaBanosNodes, setParqueBurbujaExtNodes, setParqueMedialunaExtNodes, setParqueCascadaNodes, setParqueSala1Nodes, setParqueSala2Nodes, setParqueSala3Nodes, setParqueSala4Nodes, setParqueTobogan3Nodes, setParqueCascadaOlasNodes, setParqueChorrosOlasNodes, setParqueAguaFriaParqueNodes, setPozo19Nodes, setPozoLaloNodes, setPozoLuisaNodes])
+  }, [fetchPumpsBatch, setGrutaNodes, setHidroNodes, setGruta2Nodes, setGruta3Nodes, setGruta4Nodes, setFangoEsteNodes, setFangoOesteNodes, setAljibeFangoNodes, setAscensorNodes, setCacheutinaNodes, setChorroCacheutinaNodes, setCascadaNodes, setAguaFriaNodes, setParqueArriba1Nodes, setParqueBtv2Nodes, setParqueJfv3Nodes, setParqueDuchas4Nodes, setParqueAguaTibiaNodes, setParqueInteractivoNodes, setParqueBurbujaNodes, setParqueLosaRadianteNodes, setParqueBurbujaBanosNodes, setParqueBurbujaExtNodes, setParqueMedialunaExtNodes, setParqueCascadaNodes, setParqueSala1Nodes, setParqueSala2Nodes, setParqueSala3Nodes, setParqueSala4Nodes, setParqueTobogan3Nodes, setParqueCascadaOlasNodes, setParqueChorrosOlasNodes, setParqueAguaFriaParqueNodes, setPozo19Nodes, setPozoLaloNodes, setPozoLuisaNodes])
 
   function extractWaterFieldValues(value: any) {
     if (!value) return []
@@ -5389,6 +5560,7 @@ function App() {
   }, [appEntry])
 
   useEffect(() => {
+    setHidraulicoEquipFilter([])
     if (hidraulicoSystemListGroup) setHidraulicoSystemsQuery('')
   }, [hidraulicoSystemListGroup])
 
@@ -6541,31 +6713,53 @@ function App() {
   const isPuestoModal = isPuestoNode(transitionNode)
   const activePump = pumpOptions.find((option) => option.key === pumpActiveKey)
 
+  /** Área Gruta/Parque/Pozos para la lista de sistemas y filtros de equipo: con overlay cerrado se toma del diagrama actual (`currentGroup`). */
+  const hidraulicoSistemasListArea = useMemo((): 'gruta' | 'parque' | 'pozos' | null => {
+    if (hidraulicoSystemListGroup) return hidraulicoSystemListGroup
+    if (currentGroup === 'gruta' || currentGroup === 'parque' || currentGroup === 'pozos') return currentGroup
+    return null
+  }, [hidraulicoSystemListGroup, currentGroup])
+
   const sistemasListRows = useMemo(() => {
-    const area = hidraulicoSystemListGroup
+    const area = hidraulicoSistemasListArea
     if (!area) {
       return {
         regular: [] as (typeof SYSTEMS)[number][],
+        parqueCircuito: [] as (typeof SYSTEMS)[number][],
         sala4: [] as (typeof SYSTEMS)[number][],
         sala5: [] as (typeof SYSTEMS)[number][],
         regularAll: [] as (typeof SYSTEMS)[number][],
+        parqueCircuitoAll: [] as (typeof SYSTEMS)[number][],
         sala4All: [] as (typeof SYSTEMS)[number][],
         sala5All: [] as (typeof SYSTEMS)[number][],
         hasRows: false
       }
     }
     const systemsForArea = SYSTEMS.filter((sys) => sys.group === area)
+    const parqueCircuitoAll = area === 'parque' ? systemsForArea.filter((sys) => sys.subgroup === 'parqueCircuito') : []
     const sala4All = area === 'parque' ? systemsForArea.filter((sys) => sys.subgroup === 'sala4') : []
     const sala5All = area === 'parque' ? systemsForArea.filter((sys) => sys.subgroup === 'sala5') : []
     const regularAll = area === 'parque' ? systemsForArea.filter((sys) => !sys.subgroup) : systemsForArea
     const q = normalizeForSearch(hidraulicoSystemsQuery.trim())
     const match = (label: string) => !q || normalizeForSearch(label).includes(q)
-    const regular = regularAll.filter((s) => match(s.label))
-    const sala4 = sala4All.filter((s) => match(s.label))
-    const sala5 = sala5All.filter((s) => match(s.label))
-    const hasRows = regular.length > 0 || sala4.length > 0 || sala5.length > 0
-    return { regular, sala4, sala5, regularAll, sala4All, sala5All, hasRows }
-  }, [hidraulicoSystemListGroup, hidraulicoSystemsQuery])
+    const equipKeys = new Set(hidraulicoEquipFilter)
+    const matchesEquip = (systemId: string) => {
+      if (equipKeys.size === 0) return true
+      const kinds = SYSTEM_EQUIPMENT_KINDS[systemId]
+      if (!kinds?.size) return false
+      for (const k of equipKeys) {
+        if (kinds.has(k)) return true
+      }
+      return false
+    }
+    const regular = regularAll.filter((s) => match(s.label) && matchesEquip(s.id))
+    const parqueCircuito = parqueCircuitoAll.filter((s) => match(s.label) && matchesEquip(s.id))
+    const sala4 = sala4All.filter((s) => match(s.label) && matchesEquip(s.id))
+    const sala5 = sala5All.filter((s) => match(s.label) && matchesEquip(s.id))
+    const hasRows =
+      regular.length > 0 || parqueCircuito.length > 0 || sala4.length > 0 || sala5.length > 0
+    return { regular, parqueCircuito, sala4, sala5, regularAll, parqueCircuitoAll, sala4All, sala5All, hasRows }
+  }, [hidraulicoSistemasListArea, hidraulicoSystemsQuery, hidraulicoEquipFilter])
 
   /** Espacio bajo el botón hamburguesa (.system-menu top + 44px alto) para que el título no quede encima. */
   const hidraulicoListHeaderPadTop = 'calc(max(20px, env(safe-area-inset-top, 0px) + 12px) + 52px)'
@@ -6576,48 +6770,113 @@ function App() {
     setCurrentGroup(area)
   }
 
+  const openHidraulicoSistemasList = useCallback(() => {
+    setHidraulicoSystemListGroup(hidraulicoLastSistemasArea)
+    setMenuOpen(false)
+  }, [hidraulicoLastSistemasArea])
+
+  /** Diagrama de un sistema (no Control): mostrar acceso directo a la lista. */
+  const showHidraulicoVolverListaBtn =
+    appEntry === 'hidraulico' &&
+    hidraulicoSystemListGroup == null &&
+    (currentGroup === 'gruta' || currentGroup === 'parque' || currentGroup === 'pozos')
+
+  const sistemasEquipKindsAvailable = useMemo(() => {
+    const area = hidraulicoSistemasListArea
+    if (!area) return { bomba: false, soplador: false, lanchon: false }
+    const out: Record<PumpEquipKind, boolean> = { bomba: false, soplador: false, lanchon: false }
+    for (const s of SYSTEMS) {
+      if (s.group !== area) continue
+      const kinds = SYSTEM_EQUIPMENT_KINDS[s.id]
+      if (!kinds) continue
+      for (const k of kinds) out[k] = true
+    }
+    return out
+  }, [hidraulicoSistemasListArea])
+
+  const toggleHidraulicoEquipFilter = useCallback((kind: PumpEquipKind) => {
+    setHidraulicoEquipFilter((prev) => {
+      const next = new Set(prev)
+      if (next.has(kind)) next.delete(kind)
+      else next.add(kind)
+      return Array.from(next).sort() as PumpEquipKind[]
+    })
+  }, [])
+
+  const equipFilterButtonRow =
+    PUMP_EQUIP_ORDER.some((k) => sistemasEquipKindsAvailable[k]) ? (
+      <HStack spacing={2} flexWrap="wrap" align="center">
+        {PUMP_EQUIP_ORDER.map((kind) => {
+          const available = sistemasEquipKindsAvailable[kind]
+          const active = hidraulicoEquipFilter.includes(kind)
+          return (
+            <Button
+              key={kind}
+              size="xs"
+              variant={active ? 'solid' : 'outline'}
+              colorScheme="teal"
+              isDisabled={!available}
+              onClick={() => available && toggleHidraulicoEquipFilter(kind)}
+            >
+              {PUMP_EQUIP_LABEL[kind]}
+            </Button>
+          )
+        })}
+      </HStack>
+    ) : null
+
   const hidraulicoSystemsListPanel = (
     <Box display="flex" flexDirection="column" h="100%" minH={0} bg={listOverlayBg}>
       <Box px={3} pt={hidraulicoListHeaderPadTop} pb={2} flexShrink={0} borderBottomWidth="1px" borderColor={listCardBorder}>
-        <HStack spacing={2} flexWrap="wrap" align="center">
-          <Button
-            size="sm"
-            variant={hidraulicoSystemListGroup === 'gruta' ? 'solid' : 'outline'}
-            colorScheme="blue"
-            onClick={() => pickSistemasArea('gruta')}
-          >
-            Gruta
-          </Button>
-          <Button
-            size="sm"
-            variant={hidraulicoSystemListGroup === 'parque' ? 'solid' : 'outline'}
-            colorScheme="blue"
-            onClick={() => pickSistemasArea('parque')}
-          >
-            Parque
-          </Button>
-          <Button
-            size="sm"
-            variant={hidraulicoSystemListGroup === 'pozos' ? 'solid' : 'outline'}
-            colorScheme="blue"
-            onClick={() => pickSistemasArea('pozos')}
-          >
-            Pozos
-          </Button>
-          <Input
-            size="sm"
-            placeholder="Buscar sistema…"
-            value={hidraulicoSystemsQuery}
-            onChange={(e) => setHidraulicoSystemsQuery(e.target.value)}
-            maxW={{ base: '100%', sm: '260px' }}
-            flex={1}
-            minW="140px"
-            bg={listInputBg}
-            borderColor={listInputBorder}
-            color={isDarkMode ? 'gray.100' : 'gray.800'}
-            _placeholder={{ color: isDarkMode ? 'gray.400' : 'gray.500' }}
-          />
-        </HStack>
+        <Stack spacing={2}>
+          <HStack spacing={2} flexWrap="wrap" align="center">
+            <Button
+              size="sm"
+              variant={hidraulicoSystemListGroup === 'gruta' ? 'solid' : 'outline'}
+              colorScheme="blue"
+              onClick={() => pickSistemasArea('gruta')}
+            >
+              Gruta
+            </Button>
+            <Button
+              size="sm"
+              variant={hidraulicoSystemListGroup === 'parque' ? 'solid' : 'outline'}
+              colorScheme="blue"
+              onClick={() => pickSistemasArea('parque')}
+            >
+              Parque
+            </Button>
+            <Button
+              size="sm"
+              variant={hidraulicoSystemListGroup === 'pozos' ? 'solid' : 'outline'}
+              colorScheme="blue"
+              onClick={() => pickSistemasArea('pozos')}
+            >
+              Pozos
+            </Button>
+            <Input
+              size="sm"
+              placeholder="Buscar sistema…"
+              value={hidraulicoSystemsQuery}
+              onChange={(e) => setHidraulicoSystemsQuery(e.target.value)}
+              maxW={{ base: '100%', sm: '260px' }}
+              flex={1}
+              minW="140px"
+              bg={listInputBg}
+              borderColor={listInputBorder}
+              color={isDarkMode ? 'gray.100' : 'gray.800'}
+              _placeholder={{ color: isDarkMode ? 'gray.400' : 'gray.500' }}
+            />
+          </HStack>
+          {equipFilterButtonRow && (
+            <Box>
+              <Text fontSize="xs" fontWeight="medium" color={listCardMeta} mb={1}>
+                Equipo en diagrama
+              </Text>
+              {equipFilterButtonRow}
+            </Box>
+          )}
+        </Stack>
       </Box>
       <Box
         flex={1}
@@ -6630,13 +6889,19 @@ function App() {
       >
         {!sistemasListRows.hasRows ? (
           <Text fontSize="sm" color={listCardMeta}>
-            {hidraulicoSystemsQuery.trim() ? 'Ningún sistema coincide con la búsqueda.' : 'No hay sistemas en este grupo.'}
+            {hidraulicoSystemsQuery.trim()
+              ? 'Ningún sistema coincide con la búsqueda.'
+              : hidraulicoEquipFilter.length > 0
+                ? 'Ningún sistema coincide con el filtro de equipo.'
+                : 'No hay sistemas en este grupo.'}
           </Text>
         ) : (
           <Stack spacing={4}>
             {hidraulicoSystemListGroup === 'parque' &&
               sistemasListRows.regular.length > 0 &&
-              (sistemasListRows.sala4All.length > 0 || sistemasListRows.sala5All.length > 0) && (
+              (sistemasListRows.parqueCircuitoAll.length > 0 ||
+                sistemasListRows.sala4All.length > 0 ||
+                sistemasListRows.sala5All.length > 0) && (
               <Text fontSize="xs" fontWeight="semibold" color={listCardMeta} textTransform="uppercase" letterSpacing="wide">
                 Resto de sistemas
               </Text>
@@ -6662,6 +6927,33 @@ function App() {
                   </Box>
                 ))}
               </Stack>
+            )}
+            {sistemasListRows.parqueCircuito.length > 0 && (
+              <Box>
+                <Text fontSize="xs" fontWeight="semibold" color={listCardMeta} mb={2} textTransform="uppercase" letterSpacing="wide">
+                  SISTEMAS INTERACTIVO
+                </Text>
+                <Stack spacing={2}>
+                  {sistemasListRows.parqueCircuito.map((sys) => (
+                    <Box
+                      key={sys.id}
+                      py={2}
+                      px={3}
+                      bg={listCardBg}
+                      borderRadius="md"
+                      borderWidth="1px"
+                      borderColor={listCardBorder}
+                      cursor="pointer"
+                      onClick={() => handleSelectSystem(sys.id)}
+                      _hover={{ bg: listCardHoverBg }}
+                    >
+                      <Text fontSize="sm" fontWeight="medium" color={listCardText}>
+                        {sys.label}
+                      </Text>
+                    </Box>
+                  ))}
+                </Stack>
+              </Box>
             )}
             {sistemasListRows.sala4.length > 0 && (
               <Box>
@@ -7027,48 +7319,70 @@ function App() {
       <Box className={isDarkMode ? 'ch-dark' : ''} w="100vw" h="100dvh" bg={appBg}>
         <Box ref={diagramAreaRef} w="100%" h="100%" minH="100dvh" position="relative">
           <div className="system-menu">
-            <button
-              type="button"
-              className={`menu-button${menuOpen ? ' open' : ''}`}
-              onClick={() => setMenuOpen((prev) => !prev)}
-              aria-label="Abrir menú de sistemas"
-            >
-              <span />
-              <span />
-              <span />
-            </button>
-            {menuOpen && (
-              <div className="menu-dropdown">
-                {HIDRAULICO_HAMBURGER_GROUPS.map((group) => (
-                  <button
-                    key={group.id}
-                    type="button"
-                    className={`menu-item${
-                      group.id === 'sistemas'
-                        ? currentGroup !== 'control'
-                          ? ' active'
-                          : ''
-                        : currentGroup === 'control'
-                          ? ' active'
-                          : ''
-                    }`}
-                    onClick={() => {
-                      if (group.id === 'sistemas') {
-                        setCurrentGroup(hidraulicoLastSistemasArea)
-                        setHidraulicoSystemListGroup(hidraulicoLastSistemasArea)
-                        setMenuOpen(false)
-                      } else {
-                        setCurrentGroup('control')
-                        setHidraulicoSystemListGroup(null)
-                        setMenuOpen(false)
-                      }
-                    }}
-                  >
-                    {group.label}
-                  </button>
-                ))}
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, flexWrap: 'wrap' }}>
+              {showHidraulicoVolverListaBtn && (
+                <Button
+                  size="sm"
+                  h="44px"
+                  px={3}
+                  borderRadius="12px"
+                  variant="solid"
+                  colorScheme="teal"
+                  fontWeight="semibold"
+                  onClick={openHidraulicoSistemasList}
+                  aria-label="Volver a la lista de sistemas"
+                  title="Volver a la lista de sistemas"
+                  flexShrink={0}
+                  boxShadow="0 8px 16px rgba(0,0,0,0.08)"
+                >
+                  Volver
+                </Button>
+              )}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                <button
+                  type="button"
+                  className={`menu-button${menuOpen ? ' open' : ''}`}
+                  onClick={() => setMenuOpen((prev) => !prev)}
+                  aria-label="Abrir menú de sistemas"
+                >
+                  <span />
+                  <span />
+                  <span />
+                </button>
+                {menuOpen && (
+                  <div className="menu-dropdown">
+                    {HIDRAULICO_HAMBURGER_GROUPS.map((group) => (
+                      <button
+                        key={group.id}
+                        type="button"
+                        className={`menu-item${
+                          group.id === 'sistemas'
+                            ? currentGroup !== 'control'
+                              ? ' active'
+                              : ''
+                            : currentGroup === 'control'
+                              ? ' active'
+                              : ''
+                        }`}
+                        onClick={() => {
+                          if (group.id === 'sistemas') {
+                            setCurrentGroup(hidraulicoLastSistemasArea)
+                            setHidraulicoSystemListGroup(hidraulicoLastSistemasArea)
+                            setMenuOpen(false)
+                          } else {
+                            setCurrentGroup('control')
+                            setHidraulicoSystemListGroup(null)
+                            setMenuOpen(false)
+                          }
+                        }}
+                      >
+                        {group.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
-            )}
+            </div>
           </div>
           <div
             style={{
@@ -7908,48 +8222,70 @@ function App() {
             order={{ base: 1, lg: 2 }}
           >
             <div className="system-menu">
-              <button
-                type="button"
-                className={`menu-button${menuOpen ? ' open' : ''}`}
-                onClick={() => setMenuOpen((prev) => !prev)}
-                aria-label="Abrir menú de sistemas"
-              >
-                <span />
-                <span />
-                <span />
-              </button>
-              {menuOpen && (
-                <div className="menu-dropdown">
-                  {HIDRAULICO_HAMBURGER_GROUPS.map((group) => (
-                    <button
-                      key={group.id}
-                      type="button"
-                      className={`menu-item${
-                        group.id === 'sistemas'
-                          ? currentGroup !== 'control'
-                            ? ' active'
-                            : ''
-                          : currentGroup === 'control'
-                            ? ' active'
-                            : ''
-                      }`}
-                      onClick={() => {
-                        if (group.id === 'sistemas') {
-                          setCurrentGroup(hidraulicoLastSistemasArea)
-                          setHidraulicoSystemListGroup(hidraulicoLastSistemasArea)
-                          setMenuOpen(false)
-                        } else {
-                          setCurrentGroup('control')
-                          setHidraulicoSystemListGroup(null)
-                          setMenuOpen(false)
-                        }
-                      }}
-                    >
-                      {group.label}
-                    </button>
-                  ))}
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, flexWrap: 'wrap' }}>
+                {showHidraulicoVolverListaBtn && (
+                  <Button
+                    size="sm"
+                    h="44px"
+                    px={3}
+                    borderRadius="12px"
+                    variant="solid"
+                    colorScheme="teal"
+                    fontWeight="semibold"
+                    onClick={openHidraulicoSistemasList}
+                    aria-label="Volver a la lista de sistemas"
+                    title="Volver a la lista de sistemas"
+                    flexShrink={0}
+                    boxShadow="0 8px 16px rgba(0,0,0,0.08)"
+                  >
+                    Volver
+                  </Button>
+                )}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                  <button
+                    type="button"
+                    className={`menu-button${menuOpen ? ' open' : ''}`}
+                    onClick={() => setMenuOpen((prev) => !prev)}
+                    aria-label="Abrir menú de sistemas"
+                  >
+                    <span />
+                    <span />
+                    <span />
+                  </button>
+                  {menuOpen && (
+                    <div className="menu-dropdown">
+                      {HIDRAULICO_HAMBURGER_GROUPS.map((group) => (
+                        <button
+                          key={group.id}
+                          type="button"
+                          className={`menu-item${
+                            group.id === 'sistemas'
+                              ? currentGroup !== 'control'
+                                ? ' active'
+                                : ''
+                              : currentGroup === 'control'
+                                ? ' active'
+                                : ''
+                          }`}
+                          onClick={() => {
+                            if (group.id === 'sistemas') {
+                              setCurrentGroup(hidraulicoLastSistemasArea)
+                              setHidraulicoSystemListGroup(hidraulicoLastSistemasArea)
+                              setMenuOpen(false)
+                            } else {
+                              setCurrentGroup('control')
+                              setHidraulicoSystemListGroup(null)
+                              setMenuOpen(false)
+                            }
+                          }}
+                        >
+                          {group.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              )}
+              </div>
             </div>
             <div
               style={{

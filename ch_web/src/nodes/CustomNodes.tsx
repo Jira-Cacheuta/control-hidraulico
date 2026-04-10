@@ -4,10 +4,15 @@ import type { NodeProps } from 'reactflow'
 const TEXT = '#2D3748'
 
 
-/** Si el texto tiene más de un string (palabra), devuelve uno por línea para apilar en el ícono. */
+/** Líneas para apilar en el ícono: respeta saltos explícitos (`\n`); si no, una palabra por línea. */
 function getLabelLinesStacked(label: string): string[] {
-  const words = label.replace(/\n/g, ' ').trim().split(/\s+/).filter(Boolean)
-  return words.length > 0 ? words : [label.trim() || '']
+  const raw = label.replace(/\r/g, '').trim()
+  if (!raw) return ['']
+  if (raw.includes('\n')) {
+    return raw.split('\n').map((l) => l.trim()).filter(Boolean)
+  }
+  const words = raw.split(/\s+/).filter(Boolean)
+  return words.length > 0 ? words : [raw]
 }
 
 function ShapeText({ text, color = TEXT, fontSize = 11 }: { text: string; color?: string; fontSize?: number }) {
@@ -27,10 +32,10 @@ function ShapeText({ text, color = TEXT, fontSize = 11 }: { text: string; color?
 
 function ServiceText({ text }: { text: string }) {
   const lines = getLabelLinesStacked(text)
-  const fs = lines.length > 2 ? 8 : 10
-  const dy = lines.length > 2 ? 10 : 12
+  const fs = lines.length > 3 ? 7 : lines.length > 2 ? 8 : 10
+  const dy = lines.length > 3 ? 8 : lines.length > 2 ? 10 : 12
   return (
-    <text x="50%" y="52%" textAnchor="middle" dominantBaseline="middle" fontSize={fs} fill={TEXT}>
+    <text x="50%" y="50%" textAnchor="middle" dominantBaseline="middle" fontSize={fs} fill={TEXT}>
       {lines.map((line, idx) => (
         <tspan key={`${line}-${idx}`} x="50%" dy={idx === 0 ? (lines.length > 1 ? -(lines.length - 1) * (dy / 2) : 0) : dy}>
           {line}
