@@ -7319,7 +7319,49 @@ function App() {
       <Box className={isDarkMode ? 'ch-dark' : ''} w="100vw" h="100dvh" bg={appBg}>
         <Box ref={diagramAreaRef} w="100%" h="100%" minH="100dvh" position="relative">
           <div className="system-menu">
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 8 }}>
+              <button
+                type="button"
+                className={`menu-button${menuOpen ? ' open' : ''}`}
+                onClick={() => setMenuOpen((prev) => !prev)}
+                aria-label="Abrir menú de sistemas"
+              >
+                <span />
+                <span />
+                <span />
+              </button>
+              {menuOpen && (
+                <div className="menu-dropdown">
+                  {HIDRAULICO_HAMBURGER_GROUPS.map((group) => (
+                    <button
+                      key={group.id}
+                      type="button"
+                      className={`menu-item${
+                        group.id === 'sistemas'
+                          ? currentGroup !== 'control'
+                            ? ' active'
+                            : ''
+                          : currentGroup === 'control'
+                            ? ' active'
+                            : ''
+                      }`}
+                      onClick={() => {
+                        if (group.id === 'sistemas') {
+                          setCurrentGroup(hidraulicoLastSistemasArea)
+                          setHidraulicoSystemListGroup(hidraulicoLastSistemasArea)
+                          setMenuOpen(false)
+                        } else {
+                          setCurrentGroup('control')
+                          setHidraulicoSystemListGroup(null)
+                          setMenuOpen(false)
+                        }
+                      }}
+                    >
+                      {group.label}
+                    </button>
+                  ))}
+                </div>
+              )}
               {showHidraulicoVolverListaBtn && (
                 <Button
                   size="sm"
@@ -7338,50 +7380,6 @@ function App() {
                   Volver
                 </Button>
               )}
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-                <button
-                  type="button"
-                  className={`menu-button${menuOpen ? ' open' : ''}`}
-                  onClick={() => setMenuOpen((prev) => !prev)}
-                  aria-label="Abrir menú de sistemas"
-                >
-                  <span />
-                  <span />
-                  <span />
-                </button>
-                {menuOpen && (
-                  <div className="menu-dropdown">
-                    {HIDRAULICO_HAMBURGER_GROUPS.map((group) => (
-                      <button
-                        key={group.id}
-                        type="button"
-                        className={`menu-item${
-                          group.id === 'sistemas'
-                            ? currentGroup !== 'control'
-                              ? ' active'
-                              : ''
-                            : currentGroup === 'control'
-                              ? ' active'
-                              : ''
-                        }`}
-                        onClick={() => {
-                          if (group.id === 'sistemas') {
-                            setCurrentGroup(hidraulicoLastSistemasArea)
-                            setHidraulicoSystemListGroup(hidraulicoLastSistemasArea)
-                            setMenuOpen(false)
-                          } else {
-                            setCurrentGroup('control')
-                            setHidraulicoSystemListGroup(null)
-                            setMenuOpen(false)
-                          }
-                        }}
-                      >
-                        {group.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
             </div>
           </div>
           <div
