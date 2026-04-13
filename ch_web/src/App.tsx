@@ -32,6 +32,17 @@ function normalizeForSearch(s: string): string {
   return (s || '').toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '')
 }
 
+/** Vista móvil: salto de línea cada 3 palabras si hay más de 3, para acortar el ancho del chip del sistema. */
+function formatMobileSystemChipLabel(text: string): string {
+  const words = text.trim().split(/\s+/).filter(Boolean)
+  if (words.length <= 3) return text
+  const lines: string[] = []
+  for (let i = 0; i < words.length; i += 3) {
+    lines.push(words.slice(i, i + 3).join(' '))
+  }
+  return lines.join('\n')
+}
+
 type ControlPiletasRow = {
   key: string
   summary?: string
@@ -7364,10 +7375,12 @@ function App() {
               )}
               {showHidraulicoVolverListaBtn && (
                 <Button
-                  size="sm"
-                  h="44px"
-                  px={3}
-                  borderRadius="12px"
+                  size="xs"
+                  h="32px"
+                  minH="32px"
+                  px={2}
+                  fontSize="xs"
+                  borderRadius="10px"
                   variant="solid"
                   colorScheme="teal"
                   fontWeight="semibold"
@@ -7375,7 +7388,7 @@ function App() {
                   aria-label="Volver a la lista de sistemas"
                   title="Volver a la lista de sistemas"
                   flexShrink={0}
-                  boxShadow="0 8px 16px rgba(0,0,0,0.08)"
+                  boxShadow="0 6px 12px rgba(0,0,0,0.07)"
                 >
                   Volver
                 </Button>
@@ -7389,7 +7402,7 @@ function App() {
               right: 'max(24px, calc(env(safe-area-inset-right, 0px) + 16px))',
               zIndex: 20,
               display: 'flex',
-              alignItems: 'center',
+              alignItems: 'flex-start',
               gap: 8
             }}
           >
@@ -7424,16 +7437,20 @@ function App() {
               style={{
                 background: displayLabel === 'Control' ? '#FDE047' : '#FEEBC8',
                 border: displayLabel === 'Control' ? '1px solid #FACC15' : '1px solid #F6AD55',
-                borderRadius: 999,
-                padding: '6px 12px',
-                fontSize: 14,
+                borderRadius: 14,
+                padding: '5px 10px',
+                fontSize: 12,
+                lineHeight: 1.25,
                 fontWeight: 600,
                 color: displayLabel === 'Control' ? '#422006' : '#7B341E',
                 boxShadow: '0 1px 3px rgba(0, 0, 0, 0.12)',
-                whiteSpace: 'nowrap'
+                whiteSpace: 'pre-line',
+                textAlign: 'center',
+                maxWidth: 'min(42vw, 152px)',
+                wordBreak: 'break-word'
               }}
             >
-              {displayLabel}
+              {formatMobileSystemChipLabel(displayLabel)}
             </div>
           </div>
           {currentGroup === 'control' ? (
