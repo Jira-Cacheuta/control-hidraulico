@@ -1475,7 +1475,7 @@ const ascensorNodesInitial: Node[] = [
   },
   {
     id: 'ascensor-servicio1',
-    type: 'service',
+    type: 'cloudService',
     position: { x: 295, y: 520 },
     draggable: false,
     data: { label: 'Burbujas en pileta', issueKey: 'CH-893' }
