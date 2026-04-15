@@ -1,3 +1,4 @@
+import './installFavicon.ts'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { ChakraProvider, extendTheme } from '@chakra-ui/react'

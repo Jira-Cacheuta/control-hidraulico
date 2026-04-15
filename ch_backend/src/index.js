@@ -1090,6 +1090,10 @@ app.use(
   express.static(distPath, {
     setHeaders(res, filePath) {
       const base = path.basename(filePath)
+      if (base === 'index.html') {
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate')
+        return
+      }
       if (
         base === 'favicon.ico' ||
         base === 'apple-touch-icon.png' ||
