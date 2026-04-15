@@ -1086,7 +1086,20 @@ app.post('/api/issues/:key/comment', async (req, res) => {
 
 // Servir frontend compilado (ch_web/dist) y fallback SPA para despliegue en un solo servidor
 const distPath = path.join(__dirname, '..', '..', 'ch_web', 'dist')
-app.use(express.static(distPath))
+app.use(
+  express.static(distPath, {
+    setHeaders(res, filePath) {
+      const base = path.basename(filePath)
+      if (
+        base === 'favicon.ico' ||
+        base === 'apple-touch-icon.png' ||
+        (base.startsWith('pwa-') && base.endsWith('.png'))
+      ) {
+        res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate')
+      }
+    }
+  })
+)
 /** Si falta un archivo estático (ej. favicon.svg viejo), no devolver index.html: Chrome lo pinta como ícono corrupto. */
 function looksLikeMissingStaticAsset(reqPath) {
   if (!reqPath || reqPath === '/') return false
