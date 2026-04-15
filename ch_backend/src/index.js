@@ -1087,7 +1087,16 @@ app.post('/api/issues/:key/comment', async (req, res) => {
 // Servir frontend compilado (ch_web/dist) y fallback SPA para despliegue en un solo servidor
 const distPath = path.join(__dirname, '..', '..', 'ch_web', 'dist')
 app.use(express.static(distPath))
+/** Si falta un archivo estático (ej. favicon.svg viejo), no devolver index.html: Chrome lo pinta como ícono corrupto. */
+function looksLikeMissingStaticAsset(reqPath) {
+  if (!reqPath || reqPath === '/') return false
+  return /\.(ico|png|jpe?g|gif|svg|webp|woff2?|ttf|map|pdf|txt|json|xml|webmanifest)$/i.test(reqPath)
+}
 app.get('*', (req, res) => {
+  const p = req.path || ''
+  if (looksLikeMissingStaticAsset(p)) {
+    return res.status(404).type('text/plain').send('Not found')
+  }
   res.sendFile(path.join(distPath, 'index.html'))
 })
 
