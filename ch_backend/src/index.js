@@ -567,6 +567,50 @@ app.get('/api/debug/issue/:key/links', async (req, res) => {
   }
 })
 
+const EQUIPMENT_ISSUE_TYPES_FOR_ENRICH = ['Bomba', 'Soplador', 'Lanchón']
+
+/** Epic + si tiene link "blocks"/"is blocked by" con un Puesto (equipo en uso en un puesto). */
+async function enrichEquipmentIssueForList(jira, equipmentKey, epicFieldId) {
+  const issue = await getIssueWithLinks(jira, equipmentKey, epicFieldId)
+  const epicKey = extractEpicKey(issue?.fields, epicFieldId)
+  let epicSummary = null
+  if (epicKey) {
+    try {
+      const { data } = await jira.get(`/issue/${encodeURIComponent(epicKey)}`, { params: { fields: 'summary' } })
+      epicSummary = data?.fields?.summary || null
+    } catch (_) {
+      epicSummary = null
+    }
+  }
+  const links = issue?.fields?.issuelinks || []
+  let blocksPuesto = false
+  for (const link of links) {
+    if (!isLinkTypeMatch(link, 'blocks') && !isLinkTypeMatch(link, 'is blocked by')) continue
+    const otherKey = getOtherIssueKey(link, equipmentKey)
+    if (!otherKey) continue
+    try {
+      const other = await getIssueWithLinks(jira, otherKey, epicFieldId)
+      const otherType = String(other?.fields?.issuetype?.name || '').toLowerCase()
+      if (otherType.includes('puesto')) {
+        blocksPuesto = true
+        break
+      }
+    } catch (_) {
+      // ignorar
+    }
+  }
+  return { epicKey: epicKey || null, epicSummary, blocksPuesto }
+}
+
+async function mapInBatches(items, batchSize, fn) {
+  const out = []
+  for (let i = 0; i < items.length; i += batchSize) {
+    const chunk = items.slice(i, i + batchSize)
+    out.push(...(await Promise.all(chunk.map(fn))))
+  }
+  return out
+}
+
 app.get('/api/issues', async (req, res) => {
   try {
     const jira = getJiraClient()
@@ -594,17 +638,32 @@ app.get('/api/issues', async (req, res) => {
       if (issue?.key && !unique.has(issue.key)) unique.set(issue.key, issue)
     }
 
-    const normalized = Array.from(unique.values()).map((issue) => ({
-      key: issue.key,
-      summary: issue.fields?.summary,
-      status: {
-        name: issue.fields?.status?.name,
-        category: issue.fields?.status?.statusCategory?.name
-      },
-      issueType: issue.fields?.issuetype?.name,
-      updated: issue.fields?.updated,
-      customfield_11815: issue.fields?.customfield_11815
-    }))
+    const epicFieldId = await getEpicFieldId(jira)
+    const issuesList = Array.from(unique.values())
+
+    const normalized = await mapInBatches(issuesList, 6, async (issue) => {
+      const base = {
+        key: issue.key,
+        summary: issue.fields?.summary,
+        status: {
+          name: issue.fields?.status?.name,
+          category: issue.fields?.status?.statusCategory?.name
+        },
+        issueType: issue.fields?.issuetype?.name,
+        updated: issue.fields?.updated,
+        customfield_11815: issue.fields?.customfield_11815
+      }
+      const t = issue.fields?.issuetype?.name
+      if (!EQUIPMENT_ISSUE_TYPES_FOR_ENRICH.includes(t)) {
+        return { ...base, epicKey: null, epicSummary: null, blocksPuesto: null }
+      }
+      try {
+        const extra = await enrichEquipmentIssueForList(jira, issue.key, epicFieldId)
+        return { ...base, ...extra }
+      } catch (_) {
+        return { ...base, epicKey: null, epicSummary: null, blocksPuesto: null }
+      }
+    })
 
     res.json({ issues: normalized })
   } catch (error) {

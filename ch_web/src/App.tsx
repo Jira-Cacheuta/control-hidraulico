@@ -167,6 +167,9 @@ const HIDRAULICO_HAMBURGER_GROUPS = [
 
 type AppEntry = 'home' | 'hidraulico' | 'piletas' | 'servicios'
 
+/** Pestaña de la lista Sistemas (Control hidráulico): Todos = todos los sectores + búsqueda global de equipo. */
+type HidraulicoSistemasTab = 'all' | 'gruta' | 'parque' | 'pozos'
+
 /** Mapeo nodo bomba/soplador -> issueKey del puesto. Si el puesto no tiene activeKey, se oculta el ícono. */
 const PUMP_NODE_TO_PUESTO_KEY: Record<string, string> = {
   'bomba': 'CH-5',
@@ -4082,6 +4085,32 @@ const PUMP_EQUIP_LABEL: Record<PumpEquipKind, string> = {
 
 const PUMP_EQUIP_ORDER: PumpEquipKind[] = ['bomba', 'soplador', 'lanchon']
 
+/** Alinea el summary del epic de Jira con un `systemId` de la lista (Gruta/Parque/Pozos). */
+function findSystemIdByEpicSummary(epicSummary: string | undefined | null): string | null {
+  if (!epicSummary?.trim()) return null
+  const n = normalizeForSearch(epicSummary.trim())
+  let best: { id: string; len: number } | null = null
+  for (const s of SYSTEMS) {
+    if (s.group !== 'gruta' && s.group !== 'parque' && s.group !== 'pozos') continue
+    const label = normalizeForSearch(s.label)
+    if (n === label) return s.id
+    if (n.includes(label) || label.includes(n)) {
+      const len = Math.min(n.length, label.length)
+      if (!best || len > best.len) best = { id: s.id, len }
+    }
+  }
+  return best?.id ?? null
+}
+
+function pumpKindFromIssueType(issueType?: string): PumpEquipKind | null {
+  if (!issueType) return null
+  const n = normalizeForSearch(issueType)
+  if (n.includes('lanchon')) return 'lanchon'
+  if (n.includes('soplador')) return 'soplador'
+  if (n.includes('bomba')) return 'bomba'
+  return null
+}
+
 function classifyDiagramPumpNode(node: Node): PumpEquipKind | null {
   if (node.type !== 'pump') return null
   const id = (node.id || '').toLowerCase()
@@ -4105,6 +4134,226 @@ const SYSTEM_EQUIPMENT_KINDS: Record<string, Set<PumpEquipKind>> = (() => {
   }
   return map
 })()
+
+/** Catálogo estático bomba/soplador/lanchón por sistema (issueKey base por nodo). */
+const PUMP_CATALOG_ENTRIES: { systemId: string; nodeId: string; baseIssueKey: string; kind: PumpEquipKind }[] = []
+for (const { systemId, nodes } of ALL_SYSTEM_NODES) {
+  for (const node of nodes) {
+    if (node.type !== 'pump') continue
+    const baseIssueKey = (node.data as { issueKey?: string } | undefined)?.issueKey
+    if (!baseIssueKey?.trim()) continue
+    const kind = classifyDiagramPumpNode(node)
+    if (!kind) continue
+    PUMP_CATALOG_ENTRIES.push({ systemId, nodeId: node.id, baseIssueKey: baseIssueKey.trim(), kind })
+  }
+}
+
+function getEffectivePumpIssueKey(
+  nodeId: string,
+  baseIssueKey: string,
+  puestoActivePumps: Record<string, string | null>
+): string {
+  const puestoKey = PUMP_NODE_TO_PUESTO_KEY[nodeId]
+  if (!puestoKey) return baseIssueKey
+  const active = puestoActivePumps[puestoKey]
+  return active && String(active).trim() ? String(active).trim() : baseIssueKey
+}
+
+function isPumpEquipIssueType(issueType?: string): boolean {
+  if (!issueType) return true
+  const n = normalizeForSearch(issueType)
+  return n === 'bomba' || n === 'soplador' || n === 'lanchon'
+}
+
+function fourDigitTokens(summary: string): string[] {
+  return (summary.match(/\d{4}/g) as string[] | null) ?? []
+}
+
+function matchEquipQueryAgainstSummary(summary: string | undefined, rawQuery: string): boolean {
+  const q = rawQuery.trim()
+  if (!q) return true
+  if (!summary) return false
+  if (/^\d+$/.test(q)) {
+    if (q.length === 4) {
+      return fourDigitTokens(summary).includes(q)
+    }
+    if (q.length >= 1 && q.length <= 3) {
+      if (fourDigitTokens(summary).some((t) => t.startsWith(q))) return true
+      return normalizeForSearch(summary).includes(normalizeForSearch(q))
+    }
+    return normalizeForSearch(summary).includes(normalizeForSearch(q))
+  }
+  return normalizeForSearch(summary).includes(normalizeForSearch(q))
+}
+
+/** Metadatos de issue para lista Sistemas (incl. epic y link blocks↔puesto desde el backend). */
+type DiagramIssueMeta = {
+  summary?: string
+  issueType?: string
+  epicKey?: string | null
+  epicSummary?: string | null
+  blocksPuesto?: boolean | null
+}
+
+function systemHasSpareMatchingChip(
+  systemId: string,
+  equipFilter: PumpEquipKind[],
+  equipQuery: string,
+  diagramIssuesByKey: Record<string, DiagramIssueMeta>
+): boolean {
+  if (!equipFilter.length || !equipQuery.trim()) return false
+  const equipKeys = new Set(equipFilter)
+  for (const key of Object.keys(diagramIssuesByKey)) {
+    const meta = diagramIssuesByKey[key]
+    if (!meta || meta.blocksPuesto !== false) continue
+    const pk = pumpKindFromIssueType(meta.issueType)
+    if (!pk || !equipKeys.has(pk)) continue
+    if (!matchEquipQueryAgainstSummary(meta.summary, equipQuery)) continue
+    if (findSystemIdByEpicSummary(meta.epicSummary) === systemId) return true
+  }
+  return false
+}
+
+function systemMatchesEquipQuery(
+  systemId: string,
+  equipQuery: string,
+  equipFilter: PumpEquipKind[],
+  diagramIssuesByKey: Record<string, DiagramIssueMeta>,
+  puestoActivePumps: Record<string, string | null>
+): boolean {
+  const allowedKinds = new Set<PumpEquipKind>(
+    equipFilter.length > 0 ? equipFilter : ['bomba', 'soplador', 'lanchon']
+  )
+  for (const entry of PUMP_CATALOG_ENTRIES) {
+    if (entry.systemId !== systemId) continue
+    if (!allowedKinds.has(entry.kind)) continue
+    const eff = getEffectivePumpIssueKey(entry.nodeId, entry.baseIssueKey, puestoActivePumps)
+    /** Buscar en la key activa y en la key del diagrama (base): el código en summary suele estar en la issue del nodo aunque otra bomba esté en uso. */
+    for (const key of Array.from(new Set([eff, entry.baseIssueKey].filter(Boolean)))) {
+      const meta = diagramIssuesByKey[key]
+      if (!meta) continue
+      const issueType = meta.issueType
+      if (issueType && !isPumpEquipIssueType(issueType)) continue
+      if (matchEquipQueryAgainstSummary(meta.summary, equipQuery)) return true
+    }
+  }
+  for (const key of Object.keys(diagramIssuesByKey)) {
+    const meta = diagramIssuesByKey[key]
+    if (!meta || !isPumpEquipIssueType(meta.issueType)) continue
+    const pk = pumpKindFromIssueType(meta.issueType)
+    if (!pk || !allowedKinds.has(pk)) continue
+    if (meta.blocksPuesto !== false) continue
+    if (!matchEquipQueryAgainstSummary(meta.summary, equipQuery)) continue
+    if (findSystemIdByEpicSummary(meta.epicSummary) === systemId) return true
+  }
+  return false
+}
+
+/** Sistema del diagrama al que pertenece una issue de equipo (key base o bomba activa del puesto). */
+function pumpCatalogSystemIdForIssueKey(
+  issueKey: string,
+  puestoActivePumps: Record<string, string | null>
+): string | null {
+  for (const entry of PUMP_CATALOG_ENTRIES) {
+    const eff = getEffectivePumpIssueKey(entry.nodeId, entry.baseIssueKey, puestoActivePumps)
+    if (eff === issueKey || entry.baseIssueKey === issueKey) return entry.systemId
+  }
+  return null
+}
+
+/** Texto breve si la búsqueda por código de 4 dígitos coincide con equipo sin link blocks a un puesto. */
+function spareRecambioHintForSystem(
+  systemId: string,
+  equipQuery: string,
+  diagramIssuesByKey: Record<string, DiagramIssueMeta>,
+  puestoActivePumps: Record<string, string | null>
+): string | null {
+  const q = equipQuery.trim()
+  if (!/^\d{4}$/.test(q)) return null
+  for (const key of Object.keys(diagramIssuesByKey)) {
+    const meta = diagramIssuesByKey[key]
+    if (!meta || !isPumpEquipIssueType(meta.issueType)) continue
+    /** Solo excluimos si Jira confirma link blocks con un puesto; `false` o `null` permiten mostrar recambio. */
+    if (meta.blocksPuesto === true) continue
+    if (!fourDigitTokens(meta.summary || '').includes(q)) continue
+    if (findSystemIdByEpicSummary(meta.epicSummary) === systemId) {
+      return 'Equipo de recambio (no en uso)'
+    }
+    if (pumpCatalogSystemIdForIssueKey(key, puestoActivePumps) === systemId) {
+      return 'Equipo de recambio (no en uso)'
+    }
+  }
+  return null
+}
+
+type SistemasListParqueRows = {
+  regular: (typeof SYSTEMS)[number][]
+  parqueCircuito: (typeof SYSTEMS)[number][]
+  sala4: (typeof SYSTEMS)[number][]
+  sala5: (typeof SYSTEMS)[number][]
+  regularAll: (typeof SYSTEMS)[number][]
+  parqueCircuitoAll: (typeof SYSTEMS)[number][]
+  sala4All: (typeof SYSTEMS)[number][]
+  sala5All: (typeof SYSTEMS)[number][]
+  hasRows: boolean
+}
+
+function buildSistemasListRowsForArea(
+  area: 'gruta' | 'parque' | 'pozos',
+  systemsQuery: string,
+  equipQuery: string,
+  equipFilter: PumpEquipKind[],
+  diagramIssuesByKey: Record<string, DiagramIssueMeta>,
+  puestoActivePumps: Record<string, string | null>
+): SistemasListParqueRows {
+  const systemsForArea = SYSTEMS.filter((sys) => sys.group === area)
+  const parqueCircuitoAll = area === 'parque' ? systemsForArea.filter((sys) => sys.subgroup === 'parqueCircuito') : []
+  const sala4All = area === 'parque' ? systemsForArea.filter((sys) => sys.subgroup === 'sala4') : []
+  const sala5All = area === 'parque' ? systemsForArea.filter((sys) => sys.subgroup === 'sala5') : []
+  const regularAll = area === 'parque' ? systemsForArea.filter((sys) => !sys.subgroup) : systemsForArea
+  const q = normalizeForSearch(systemsQuery.trim())
+  const matchLabel = (label: string) => !q || normalizeForSearch(label).includes(q)
+  const equipKeys = new Set(equipFilter)
+  const matchesEquipFilters = (systemId: string) => {
+    const kinds = SYSTEM_EQUIPMENT_KINDS[systemId]
+    if (equipKeys.size > 0) {
+      let kindMatch = false
+      if (kinds?.size) {
+        for (const k of equipKeys) {
+          if (kinds.has(k)) {
+            kindMatch = true
+            break
+          }
+        }
+      }
+      if (!kindMatch && !systemHasSpareMatchingChip(systemId, equipFilter, equipQuery, diagramIssuesByKey)) {
+        return false
+      }
+    }
+    const eq = equipQuery.trim()
+    if (!eq) return true
+    return systemMatchesEquipQuery(systemId, eq, equipFilter, diagramIssuesByKey, puestoActivePumps)
+  }
+  const filterList = (list: (typeof SYSTEMS)[number][]) =>
+    list.filter((s) => matchLabel(s.label) && matchesEquipFilters(s.id))
+  const regular = filterList(regularAll)
+  const parqueCircuito = filterList(parqueCircuitoAll)
+  const sala4 = filterList(sala4All)
+  const sala5 = filterList(sala5All)
+  const hasRows =
+    regular.length > 0 || parqueCircuito.length > 0 || sala4.length > 0 || sala5.length > 0
+  return {
+    regular,
+    parqueCircuito,
+    sala4,
+    sala5,
+    regularAll,
+    parqueCircuitoAll,
+    sala4All,
+    sala5All,
+    hasRows
+  }
+}
 
 /** IDs del bloque que parte de la barra azul (manifold) en Gruta Nº1; en desktop se desplazan hacia abajo para no superponer la Llave. */
 const GRUTA1_BELOW_MANIFOLD_IDS = new Set([
@@ -4341,11 +4590,13 @@ function App() {
     return 'home'
   })
   /** Lista unificada Sistemas: área activa (Gruta / Parque / Pozos); null = diagrama o Control. */
-  const [hidraulicoSystemListGroup, setHidraulicoSystemListGroup] = useState<null | 'gruta' | 'parque' | 'pozos'>(null)
+  const [hidraulicoSystemListGroup, setHidraulicoSystemListGroup] = useState<null | HidraulicoSistemasTab>(null)
   /** Al volver a abrir “Sistemas” desde el menú, restaurar este filtro. */
-  const [hidraulicoLastSistemasArea, setHidraulicoLastSistemasArea] = useState<'gruta' | 'parque' | 'pozos'>('gruta')
+  const [hidraulicoLastSistemasArea, setHidraulicoLastSistemasArea] = useState<HidraulicoSistemasTab>('gruta')
   const [hidraulicoSystemsQuery, setHidraulicoSystemsQuery] = useState('')
+  const [hidraulicoEquipQuery, setHidraulicoEquipQuery] = useState('')
   const [hidraulicoEquipFilter, setHidraulicoEquipFilter] = useState<PumpEquipKind[]>([])
+  const [diagramIssuesByKey, setDiagramIssuesByKey] = useState<Record<string, DiagramIssueMeta>>({})
   const [controlIssues, setControlIssues] = useState<
     Array<{ key: string; summary?: string; status?: string; issueType?: string; epicKey?: string; epicSummary?: string; sector?: string }>
   >([])
@@ -5191,9 +5442,17 @@ function App() {
         }
         setWaterFeedSelections(nextSelections)
       }
+      const diagramByKey: Record<string, DiagramIssueMeta> = {}
       const map = new Map<string, { status?: string; summary?: string; waterField?: any }>()
       for (const issue of data.issues || []) {
         if (issue?.key) {
+          diagramByKey[issue.key] = {
+            summary: issue.summary,
+            issueType: issue.issueType,
+            epicKey: issue.epicKey ?? null,
+            epicSummary: issue.epicSummary ?? null,
+            blocksPuesto: issue.blocksPuesto ?? null
+          }
           map.set(issue.key, {
             status: issue?.status?.name,
             summary: issue?.summary,
@@ -5201,6 +5460,7 @@ function App() {
           })
         }
       }
+      setDiagramIssuesByKey(diagramByKey)
       const applyIssueData = (prev: Node[]) =>
         prev.map((node) => {
           const basePumpKey = node.type === 'pump' ? (node.data?.issueKey as string | undefined) : undefined
@@ -5571,8 +5831,10 @@ function App() {
   }, [appEntry])
 
   useEffect(() => {
+    if (!hidraulicoSystemListGroup) return
     setHidraulicoEquipFilter([])
-    if (hidraulicoSystemListGroup) setHidraulicoSystemsQuery('')
+    setHidraulicoSystemsQuery('')
+    setHidraulicoEquipQuery('')
   }, [hidraulicoSystemListGroup])
 
   const openControlPiletasModal = useCallback((row: ControlPiletasRow) => {
@@ -6725,60 +6987,53 @@ function App() {
   const activePump = pumpOptions.find((option) => option.key === pumpActiveKey)
 
   /** Área Gruta/Parque/Pozos para la lista de sistemas y filtros de equipo: con overlay cerrado se toma del diagrama actual (`currentGroup`). */
-  const hidraulicoSistemasListArea = useMemo((): 'gruta' | 'parque' | 'pozos' | null => {
+  const hidraulicoSistemasListArea = useMemo((): 'gruta' | 'parque' | 'pozos' | 'all' | null => {
+    if (hidraulicoSystemListGroup === 'all') return 'all'
     if (hidraulicoSystemListGroup) return hidraulicoSystemListGroup
     if (currentGroup === 'gruta' || currentGroup === 'parque' || currentGroup === 'pozos') return currentGroup
     return null
   }, [hidraulicoSystemListGroup, currentGroup])
 
-  const sistemasListRows = useMemo(() => {
+  const sistemasListBundle = useMemo(() => {
     const area = hidraulicoSistemasListArea
     if (!area) {
+      return { mode: 'none' as const }
+    }
+    const args = [
+      hidraulicoSystemsQuery,
+      hidraulicoEquipQuery,
+      hidraulicoEquipFilter,
+      diagramIssuesByKey,
+      puestoActivePumps
+    ] as const
+    if (area === 'all') {
       return {
-        regular: [] as (typeof SYSTEMS)[number][],
-        parqueCircuito: [] as (typeof SYSTEMS)[number][],
-        sala4: [] as (typeof SYSTEMS)[number][],
-        sala5: [] as (typeof SYSTEMS)[number][],
-        regularAll: [] as (typeof SYSTEMS)[number][],
-        parqueCircuitoAll: [] as (typeof SYSTEMS)[number][],
-        sala4All: [] as (typeof SYSTEMS)[number][],
-        sala5All: [] as (typeof SYSTEMS)[number][],
-        hasRows: false
+        mode: 'all' as const,
+        gruta: buildSistemasListRowsForArea('gruta', ...args),
+        parque: buildSistemasListRowsForArea('parque', ...args),
+        pozos: buildSistemasListRowsForArea('pozos', ...args)
       }
     }
-    const systemsForArea = SYSTEMS.filter((sys) => sys.group === area)
-    const parqueCircuitoAll = area === 'parque' ? systemsForArea.filter((sys) => sys.subgroup === 'parqueCircuito') : []
-    const sala4All = area === 'parque' ? systemsForArea.filter((sys) => sys.subgroup === 'sala4') : []
-    const sala5All = area === 'parque' ? systemsForArea.filter((sys) => sys.subgroup === 'sala5') : []
-    const regularAll = area === 'parque' ? systemsForArea.filter((sys) => !sys.subgroup) : systemsForArea
-    const q = normalizeForSearch(hidraulicoSystemsQuery.trim())
-    const match = (label: string) => !q || normalizeForSearch(label).includes(q)
-    const equipKeys = new Set(hidraulicoEquipFilter)
-    const matchesEquip = (systemId: string) => {
-      if (equipKeys.size === 0) return true
-      const kinds = SYSTEM_EQUIPMENT_KINDS[systemId]
-      if (!kinds?.size) return false
-      for (const k of equipKeys) {
-        if (kinds.has(k)) return true
-      }
-      return false
+    return {
+      mode: 'single' as const,
+      rows: buildSistemasListRowsForArea(area, ...args)
     }
-    const regular = regularAll.filter((s) => match(s.label) && matchesEquip(s.id))
-    const parqueCircuito = parqueCircuitoAll.filter((s) => match(s.label) && matchesEquip(s.id))
-    const sala4 = sala4All.filter((s) => match(s.label) && matchesEquip(s.id))
-    const sala5 = sala5All.filter((s) => match(s.label) && matchesEquip(s.id))
-    const hasRows =
-      regular.length > 0 || parqueCircuito.length > 0 || sala4.length > 0 || sala5.length > 0
-    return { regular, parqueCircuito, sala4, sala5, regularAll, parqueCircuitoAll, sala4All, sala5All, hasRows }
-  }, [hidraulicoSistemasListArea, hidraulicoSystemsQuery, hidraulicoEquipFilter])
+  }, [
+    hidraulicoSistemasListArea,
+    hidraulicoSystemsQuery,
+    hidraulicoEquipQuery,
+    hidraulicoEquipFilter,
+    diagramIssuesByKey,
+    puestoActivePumps
+  ])
 
   /** Espacio bajo el botón hamburguesa (.system-menu top + 44px alto) para que el título no quede encima. */
   const hidraulicoListHeaderPadTop = 'calc(max(20px, env(safe-area-inset-top, 0px) + 12px) + 52px)'
 
-  const pickSistemasArea = (area: 'gruta' | 'parque' | 'pozos') => {
+  const pickSistemasArea = (area: HidraulicoSistemasTab) => {
     setHidraulicoLastSistemasArea(area)
     setHidraulicoSystemListGroup(area)
-    setCurrentGroup(area)
+    if (area !== 'all') setCurrentGroup(area)
   }
 
   const openHidraulicoSistemasList = useCallback(() => {
@@ -6797,7 +7052,8 @@ function App() {
     if (!area) return { bomba: false, soplador: false, lanchon: false }
     const out: Record<PumpEquipKind, boolean> = { bomba: false, soplador: false, lanchon: false }
     for (const s of SYSTEMS) {
-      if (s.group !== area) continue
+      if (area !== 'all' && s.group !== area) continue
+      if (area === 'all' && s.group !== 'gruta' && s.group !== 'parque' && s.group !== 'pozos') continue
       const kinds = SYSTEM_EQUIPMENT_KINDS[s.id]
       if (!kinds) continue
       for (const k of kinds) out[k] = true
@@ -6836,6 +7092,77 @@ function App() {
       </HStack>
     ) : null
 
+  const sistemasListHasRows =
+    sistemasListBundle.mode === 'all'
+      ? sistemasListBundle.gruta.hasRows || sistemasListBundle.parque.hasRows || sistemasListBundle.pozos.hasRows
+      : sistemasListBundle.mode === 'single'
+        ? sistemasListBundle.rows.hasRows
+        : false
+
+  const renderSistemaListRow = (sys: (typeof SYSTEMS)[number]) => {
+    const spareHint = spareRecambioHintForSystem(sys.id, hidraulicoEquipQuery, diagramIssuesByKey, puestoActivePumps)
+    return (
+      <Box
+        key={sys.id}
+        py={2}
+        px={3}
+        bg={listCardBg}
+        borderRadius="md"
+        borderWidth="1px"
+        borderColor={listCardBorder}
+        cursor="pointer"
+        onClick={() => handleSelectSystem(sys.id)}
+        _hover={{ bg: listCardHoverBg }}
+      >
+        <Text fontSize="sm" fontWeight="medium" color={listCardText}>
+          {sys.label}
+        </Text>
+        {spareHint ? (
+          <Text fontSize="xs" color={listCardMeta} mt={1} lineHeight="short">
+            {spareHint}
+          </Text>
+        ) : null}
+      </Box>
+    )
+  }
+
+  const renderSistemasListParqueBody = (rows: SistemasListParqueRows, showParqueRestHint: boolean) => (
+    <Stack spacing={4}>
+      {showParqueRestHint &&
+        rows.regular.length > 0 &&
+        (rows.parqueCircuitoAll.length > 0 || rows.sala4All.length > 0 || rows.sala5All.length > 0) && (
+        <Text fontSize="xs" fontWeight="semibold" color={listCardMeta} textTransform="uppercase" letterSpacing="wide">
+          Resto de sistemas
+        </Text>
+      )}
+      {rows.regular.length > 0 && <Stack spacing={2}>{rows.regular.map((sys) => renderSistemaListRow(sys))}</Stack>}
+      {rows.parqueCircuito.length > 0 && (
+        <Box>
+          <Text fontSize="xs" fontWeight="semibold" color={listCardMeta} mb={2} textTransform="uppercase" letterSpacing="wide">
+            SISTEMAS INTERACTIVO
+          </Text>
+          <Stack spacing={2}>{rows.parqueCircuito.map((sys) => renderSistemaListRow(sys))}</Stack>
+        </Box>
+      )}
+      {rows.sala4.length > 0 && (
+        <Box>
+          <Text fontSize="xs" fontWeight="semibold" color={listCardMeta} mb={2} textTransform="uppercase" letterSpacing="wide">
+            Sistemas Sala 4
+          </Text>
+          <Stack spacing={2}>{rows.sala4.map((sys) => renderSistemaListRow(sys))}</Stack>
+        </Box>
+      )}
+      {rows.sala5.length > 0 && (
+        <Box>
+          <Text fontSize="xs" fontWeight="semibold" color={listCardMeta} mb={2} textTransform="uppercase" letterSpacing="wide">
+            Sistemas Sala 5
+          </Text>
+          <Stack spacing={2}>{rows.sala5.map((sys) => renderSistemaListRow(sys))}</Stack>
+        </Box>
+      )}
+    </Stack>
+  )
+
   const hidraulicoSystemsListPanel = (
     <Box display="flex" flexDirection="column" h="100%" minH={0} bg={listOverlayBg}>
       <Box px={3} pt={hidraulicoListHeaderPadTop} pb={2} flexShrink={0} borderBottomWidth="1px" borderColor={listCardBorder}>
@@ -6865,6 +7192,14 @@ function App() {
             >
               Pozos
             </Button>
+            <Button
+              size="sm"
+              variant={hidraulicoSystemListGroup === 'all' ? 'solid' : 'outline'}
+              colorScheme="blue"
+              onClick={() => pickSistemasArea('all')}
+            >
+              Todos
+            </Button>
             <Input
               size="sm"
               placeholder="Buscar sistema…"
@@ -6879,14 +7214,33 @@ function App() {
               _placeholder={{ color: isDarkMode ? 'gray.400' : 'gray.500' }}
             />
           </HStack>
-          {equipFilterButtonRow && (
-            <Box>
-              <Text fontSize="xs" fontWeight="medium" color={listCardMeta} mb={1}>
-                Equipo en diagrama
-              </Text>
+          <Stack spacing={2} w="100%">
+            <Text fontSize="xs" fontWeight="medium" color={listCardMeta}>
+              Equipo en diagrama (opcional)
+            </Text>
+            <HStack spacing={3} flexWrap="wrap" align="center" w="100%">
               {equipFilterButtonRow}
-            </Box>
-          )}
+              <Input
+                size="xs"
+                placeholder="Buscar equipo…"
+                value={hidraulicoEquipQuery}
+                onChange={(e) => setHidraulicoEquipQuery(e.target.value)}
+                w={{ base: '100%', sm: '220px' }}
+                maxW={{ base: '100%', sm: '280px' }}
+                flexShrink={0}
+                bg={listInputBg}
+                borderColor={listInputBorder}
+                color={isDarkMode ? 'gray.100' : 'gray.800'}
+                _placeholder={{ color: isDarkMode ? 'gray.400' : 'gray.500' }}
+              />
+            </HStack>
+            {hidraulicoSystemListGroup != null && hidraulicoSystemListGroup !== 'all' && (
+              <Text fontSize="xs" color={listCardMeta} lineHeight="short">
+                Solo se busca en este sector. Para buscar equipos en Gruta, Parque y Pozos a la vez (incl. código de 4
+                dígitos), elegí «Todos».
+              </Text>
+            )}
+          </Stack>
         </Stack>
       </Box>
       <Box
@@ -6898,130 +7252,42 @@ function App() {
         pb="max(24px, env(safe-area-inset-bottom, 0px))"
         style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }}
       >
-        {!sistemasListRows.hasRows ? (
+        {!sistemasListHasRows ? (
           <Text fontSize="sm" color={listCardMeta}>
-            {hidraulicoSystemsQuery.trim()
-              ? 'Ningún sistema coincide con la búsqueda.'
-              : hidraulicoEquipFilter.length > 0
-                ? 'Ningún sistema coincide con el filtro de equipo.'
-                : 'No hay sistemas en este grupo.'}
+            {hidraulicoSystemsQuery.trim() || hidraulicoEquipQuery.trim() || hidraulicoEquipFilter.length > 0
+              ? 'Ningún sistema coincide con la búsqueda o los filtros.'
+              : 'No hay sistemas en este grupo.'}
           </Text>
-        ) : (
-          <Stack spacing={4}>
-            {hidraulicoSystemListGroup === 'parque' &&
-              sistemasListRows.regular.length > 0 &&
-              (sistemasListRows.parqueCircuitoAll.length > 0 ||
-                sistemasListRows.sala4All.length > 0 ||
-                sistemasListRows.sala5All.length > 0) && (
-              <Text fontSize="xs" fontWeight="semibold" color={listCardMeta} textTransform="uppercase" letterSpacing="wide">
-                Resto de sistemas
-              </Text>
-            )}
-            {sistemasListRows.regular.length > 0 && (
-              <Stack spacing={2}>
-                {sistemasListRows.regular.map((sys) => (
-                  <Box
-                    key={sys.id}
-                    py={2}
-                    px={3}
-                    bg={listCardBg}
-                    borderRadius="md"
-                    borderWidth="1px"
-                    borderColor={listCardBorder}
-                    cursor="pointer"
-                    onClick={() => handleSelectSystem(sys.id)}
-                    _hover={{ bg: listCardHoverBg }}
-                  >
-                    <Text fontSize="sm" fontWeight="medium" color={listCardText}>
-                      {sys.label}
-                    </Text>
-                  </Box>
-                ))}
-              </Stack>
-            )}
-            {sistemasListRows.parqueCircuito.length > 0 && (
+        ) : sistemasListBundle.mode === 'all' ? (
+          <Stack spacing={6}>
+            {sistemasListBundle.gruta.hasRows && (
               <Box>
                 <Text fontSize="xs" fontWeight="semibold" color={listCardMeta} mb={2} textTransform="uppercase" letterSpacing="wide">
-                  SISTEMAS INTERACTIVO
+                  Gruta
                 </Text>
-                <Stack spacing={2}>
-                  {sistemasListRows.parqueCircuito.map((sys) => (
-                    <Box
-                      key={sys.id}
-                      py={2}
-                      px={3}
-                      bg={listCardBg}
-                      borderRadius="md"
-                      borderWidth="1px"
-                      borderColor={listCardBorder}
-                      cursor="pointer"
-                      onClick={() => handleSelectSystem(sys.id)}
-                      _hover={{ bg: listCardHoverBg }}
-                    >
-                      <Text fontSize="sm" fontWeight="medium" color={listCardText}>
-                        {sys.label}
-                      </Text>
-                    </Box>
-                  ))}
-                </Stack>
+                {renderSistemasListParqueBody(sistemasListBundle.gruta, false)}
               </Box>
             )}
-            {sistemasListRows.sala4.length > 0 && (
+            {sistemasListBundle.parque.hasRows && (
               <Box>
                 <Text fontSize="xs" fontWeight="semibold" color={listCardMeta} mb={2} textTransform="uppercase" letterSpacing="wide">
-                  Sistemas Sala 4
+                  Parque
                 </Text>
-                <Stack spacing={2}>
-                  {sistemasListRows.sala4.map((sys) => (
-                    <Box
-                      key={sys.id}
-                      py={2}
-                      px={3}
-                      bg={listCardBg}
-                      borderRadius="md"
-                      borderWidth="1px"
-                      borderColor={listCardBorder}
-                      cursor="pointer"
-                      onClick={() => handleSelectSystem(sys.id)}
-                      _hover={{ bg: listCardHoverBg }}
-                    >
-                      <Text fontSize="sm" fontWeight="medium" color={listCardText}>
-                        {sys.label}
-                      </Text>
-                    </Box>
-                  ))}
-                </Stack>
+                {renderSistemasListParqueBody(sistemasListBundle.parque, true)}
               </Box>
             )}
-            {sistemasListRows.sala5.length > 0 && (
+            {sistemasListBundle.pozos.hasRows && (
               <Box>
                 <Text fontSize="xs" fontWeight="semibold" color={listCardMeta} mb={2} textTransform="uppercase" letterSpacing="wide">
-                  Sistemas Sala 5
+                  Pozos
                 </Text>
-                <Stack spacing={2}>
-                  {sistemasListRows.sala5.map((sys) => (
-                    <Box
-                      key={sys.id}
-                      py={2}
-                      px={3}
-                      bg={listCardBg}
-                      borderRadius="md"
-                      borderWidth="1px"
-                      borderColor={listCardBorder}
-                      cursor="pointer"
-                      onClick={() => handleSelectSystem(sys.id)}
-                      _hover={{ bg: listCardHoverBg }}
-                    >
-                      <Text fontSize="sm" fontWeight="medium" color={listCardText}>
-                        {sys.label}
-                      </Text>
-                    </Box>
-                  ))}
-                </Stack>
+                {renderSistemasListParqueBody(sistemasListBundle.pozos, false)}
               </Box>
             )}
           </Stack>
-        )}
+        ) : sistemasListBundle.mode === 'single' ? (
+          renderSistemasListParqueBody(sistemasListBundle.rows, hidraulicoSystemListGroup === 'parque')
+        ) : null}
       </Box>
     </Box>
   )
@@ -7358,8 +7624,9 @@ function App() {
                       }`}
                       onClick={() => {
                         if (group.id === 'sistemas') {
-                          setCurrentGroup(hidraulicoLastSistemasArea)
-                          setHidraulicoSystemListGroup(hidraulicoLastSistemasArea)
+                          const tab = hidraulicoLastSistemasArea
+                          setHidraulicoSystemListGroup(tab)
+                          if (tab !== 'all') setCurrentGroup(tab)
                           setMenuOpen(false)
                         } else {
                           setCurrentGroup('control')
@@ -8284,8 +8551,9 @@ function App() {
                           }`}
                           onClick={() => {
                             if (group.id === 'sistemas') {
-                              setCurrentGroup(hidraulicoLastSistemasArea)
-                              setHidraulicoSystemListGroup(hidraulicoLastSistemasArea)
+                              const tab = hidraulicoLastSistemasArea
+                              setHidraulicoSystemListGroup(tab)
+                              if (tab !== 'all') setCurrentGroup(tab)
                               setMenuOpen(false)
                             } else {
                               setCurrentGroup('control')
