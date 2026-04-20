@@ -7236,8 +7236,7 @@ function App() {
             </HStack>
             {hidraulicoSystemListGroup != null && hidraulicoSystemListGroup !== 'all' && (
               <Text fontSize="xs" color={listCardMeta} lineHeight="short">
-                Solo se busca en este sector. Para buscar equipos en Gruta, Parque y Pozos a la vez (incl. código de 4
-                dígitos), elegí «Todos».
+                Solo se busca en este sector. Para buscar equipos en Gruta, Parque y Pozos a la vez, elegí «Todos».
               </Text>
             )}
           </Stack>
