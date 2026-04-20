@@ -96,7 +96,7 @@ function formatFechaHoraLocal(iso?: string | null): string {
   if (Number.isNaN(t)) return '—'
   return new Intl.DateTimeFormat('es-AR', { dateStyle: 'long', timeStyle: 'short' }).format(t)
 }
-const VIEW_BOUNDS: [[number, number], [number, number]] = [[-80, -80], [860, 1100]]
+const VIEW_BOUNDS: [[number, number], [number, number]] = [[-80, -80], [1080, 1100]]
 const WATER_FIELD_ID = 'customfield_11815'
 const WATER_FIELD_LABEL = 'Alimentación de agua'
 const WATER_FIELD_ISSUE_KEYS = ['CH-997', 'CH-1022', 'CH-1038', 'CH-1062']
@@ -117,6 +117,7 @@ const SYSTEMS = [
   { id: 'gruta2', label: 'Sistema Gruta N°2', group: 'gruta' },
   { id: 'gruta3', label: 'Sistema Gruta N°3', group: 'gruta' },
   { id: 'gruta4', label: 'Sistema Gruta N°4', group: 'gruta' },
+  { id: 'cucufate', label: 'Sistema Cucufate', group: 'gruta' },
   { id: 'fangoEste', label: 'Sistema Ducha Fango Este', group: 'gruta' },
   { id: 'fangoOeste', label: 'Sistema Ducha Fango Oeste', group: 'gruta' },
   { id: 'aljibeFango', label: 'Sistema Aljibe Fango', group: 'gruta' },
@@ -200,6 +201,7 @@ const PUMP_NODE_TO_PUESTO_KEY: Record<string, string> = {
   'parque-cascadaolas-bomba': 'CH-1153',
   'parque-chorrosolas-bomba': 'CH-1160',
   'parque-agua-fria-parque-bomba': 'CH-1072',
+  'cucufate-bomba': 'CH-1203',
   'pozo19-bomba': 'CH-981',
   'pozoLalo-bomba': 'CH-987',
   'pozoLuisa-bomba': 'CH-993'
@@ -616,6 +618,208 @@ const grutaEdgesInitial: Edge[] = [
       flow: '3 m³/h'
     }
   },
+]
+
+/** Misma disposición que Gruta Nº1 (succión, eléctrico, bomba, puesto, colector y dos ramales); sin llave ni nodo Hidro. */
+const cucufateNodesInitial: Node[] = [
+  {
+    id: 'cucufate-succion',
+    type: 'suction',
+    position: { x: 340, y: 80 },
+    draggable: false,
+    data: { label: 'Cañería Succión', issueKey: 'CH-1199' }
+  },
+  {
+    id: 'cucufate-electrico',
+    type: 'electric',
+    position: { x: 120, y: 260 },
+    draggable: false,
+    data: { label: 'Comp. Eléctrico', issueKey: 'CH-1201' }
+  },
+  {
+    id: 'cucufate-bomba',
+    type: 'pump',
+    position: { x: 140, y: 120 },
+    draggable: false,
+    data: { label: 'Bomba', issueKey: 'CH-1202' }
+  },
+  {
+    id: 'cucufate-puesto',
+    type: 'station',
+    position: { x: 340, y: 260 },
+    draggable: false,
+    data: { label: 'Puesto', issueKey: 'CH-1203' }
+  },
+  {
+    id: 'cucufate-manifold',
+    type: 'pipe',
+    position: { x: 260, y: 490 },
+    draggable: false,
+    data: { label: '', lineStart: 0, lineEnd: 160, pipeWidth: 160 }
+  },
+  {
+    id: 'cucufate-ramal1',
+    type: 'pipeSegment',
+    position: { x: 240, y: 570 },
+    draggable: false,
+    data: { issueKey: 'CH-1204' }
+  },
+  {
+    id: 'cucufate-ramal2',
+    type: 'pipeSegment',
+    position: { x: 400, y: 570 },
+    draggable: false,
+    data: { issueKey: 'CH-1205' }
+  },
+  {
+    id: 'cucufate-servicio1',
+    type: 'service',
+    position: { x: 215, y: 670 },
+    draggable: false,
+    data: { issueKey: 'CH-1206' }
+  },
+  {
+    id: 'cucufate-servicio2',
+    type: 'service',
+    position: { x: 375, y: 670 },
+    draggable: false,
+    data: { issueKey: 'CH-1207' }
+  }
+]
+
+const cucufateEdgesInitial: Edge[] = [
+  {
+    id: 'cucufate-succion-puesto',
+    source: 'cucufate-succion',
+    target: 'cucufate-puesto',
+    targetHandle: 'in-top',
+    type: 'straight',
+    style: { stroke: '#4A90E2', strokeWidth: 10 },
+    data: {
+      name: 'Cañería Succión',
+      type: 'succion',
+      diameter: 'DN100',
+      material: 'PVC',
+      pressure: '0.5 bar',
+      flow: '15 m³/h'
+    }
+  },
+  {
+    id: 'cucufate-electrico-puesto',
+    source: 'cucufate-electrico',
+    target: 'cucufate-puesto',
+    targetHandle: 'in-left',
+    type: 'straight',
+    style: { stroke: '#F87171', strokeWidth: 5, strokeDasharray: '8 8' },
+    data: {
+      name: 'Conexión Eléctrica',
+      type: 'electrica',
+      voltage: '380V',
+      power: '5.5 kW'
+    }
+  },
+  {
+    id: 'cucufate-bomba-puesto',
+    source: 'cucufate-bomba',
+    sourceHandle: 'out-diag',
+    target: 'cucufate-puesto',
+    targetHandle: 'in-diag',
+    type: 'straight',
+    style: { stroke: '#4A90E2', strokeWidth: 10 },
+    data: {
+      name: 'Cañería Bomba a Puesto',
+      type: 'impulsion',
+      diameter: 'DN80',
+      material: 'PVC',
+      pressure: '2.5 bar',
+      flow: '15 m³/h'
+    }
+  },
+  {
+    id: 'cucufate-puesto-manifold',
+    source: 'cucufate-puesto',
+    sourceHandle: 'out-bottom',
+    target: 'cucufate-manifold',
+    targetHandle: 'in-top',
+    type: 'straight',
+    style: { stroke: '#4A90E2', strokeWidth: 10 },
+    data: {
+      name: 'Cañería Principal',
+      type: 'impulsion',
+      diameter: 'DN80',
+      material: 'PVC',
+      pressure: '2.5 bar',
+      flow: '15 m³/h'
+    }
+  },
+  {
+    id: 'cucufate-manifold-ramal1',
+    source: 'cucufate-manifold',
+    sourceHandle: 'out0',
+    target: 'cucufate-ramal1',
+    targetHandle: 'in-top',
+    type: 'straight',
+    style: { stroke: '#4A90E2', strokeWidth: 8, strokeLinecap: 'round' },
+    data: {
+      name: 'Distribución',
+      type: 'distribucion',
+      diameter: 'DN50',
+      material: 'PVC',
+      pressure: '2.0 bar',
+      flow: '3 m³/h'
+    }
+  },
+  {
+    id: 'cucufate-manifold-ramal2',
+    source: 'cucufate-manifold',
+    sourceHandle: 'out5',
+    target: 'cucufate-ramal2',
+    targetHandle: 'in-top',
+    type: 'straight',
+    style: { stroke: '#4A90E2', strokeWidth: 8, strokeLinecap: 'round' },
+    data: {
+      name: 'Distribución',
+      type: 'distribucion',
+      diameter: 'DN50',
+      material: 'PVC',
+      pressure: '2.0 bar',
+      flow: '3 m³/h'
+    }
+  },
+  {
+    id: 'cucufate-ramal1-servicio1',
+    source: 'cucufate-ramal1',
+    target: 'cucufate-servicio1',
+    sourceHandle: 'out-bottom',
+    targetHandle: 'in-top',
+    type: 'straight',
+    style: { stroke: '#4A90E2', strokeWidth: 8, strokeLinecap: 'round' },
+    data: {
+      name: 'Cañería a servicio',
+      type: 'distribucion',
+      diameter: 'DN50',
+      material: 'PVC',
+      pressure: '2.0 bar',
+      flow: '3 m³/h'
+    }
+  },
+  {
+    id: 'cucufate-ramal2-servicio2',
+    source: 'cucufate-ramal2',
+    target: 'cucufate-servicio2',
+    sourceHandle: 'out-bottom',
+    targetHandle: 'in-top',
+    type: 'straight',
+    style: { stroke: '#4A90E2', strokeWidth: 8, strokeLinecap: 'round' },
+    data: {
+      name: 'Cañería a servicio',
+      type: 'distribucion',
+      diameter: 'DN50',
+      material: 'PVC',
+      pressure: '2.0 bar',
+      flow: '3 m³/h'
+    }
+  }
 ]
 
 const hidroNodesInitial: Node[] = [
@@ -3939,19 +4143,19 @@ const parqueAguaFriaParqueNodesInitial: Node[] = [
   { id: 'parque-agua-fria-parque-servicio1076', type: 'service', position: { x: 288, y: 650 }, draggable: false, data: { issueKey: 'CH-1076' } },
   { id: 'parque-agua-fria-parque-servicio1077', type: 'service', position: { x: 72, y: 650 }, draggable: false, data: { issueKey: 'CH-1077' } },
   { id: 'parque-agua-fria-parque-ramal1173', type: 'pipeSegment', position: { x: 440, y: 450 }, draggable: false, data: { issueKey: 'CH-1173' } },
-  { id: 'parque-agua-fria-parque-line1173', type: 'pipe', position: { x: 460, y: 580 }, draggable: false, data: { label: '', lineStart: 0, lineEnd: 360 } },
-  { id: 'parque-agua-fria-parque-ramal1174', type: 'pipeSegment', position: { x: 460, y: 635 }, draggable: false, data: { issueKey: 'CH-1174' } },
-  { id: 'parque-agua-fria-parque-ramal1175', type: 'pipeSegment', position: { x: 532, y: 635 }, draggable: false, data: { issueKey: 'CH-1175' } },
-  { id: 'parque-agua-fria-parque-ramal1176', type: 'pipeSegment', position: { x: 604, y: 635 }, draggable: false, data: { issueKey: 'CH-1176' } },
-  { id: 'parque-agua-fria-parque-ramal1177', type: 'pipeSegment', position: { x: 676, y: 635 }, draggable: false, data: { issueKey: 'CH-1177' } },
-  { id: 'parque-agua-fria-parque-ramal1178', type: 'pipeSegment', position: { x: 748, y: 635 }, draggable: false, data: { issueKey: 'CH-1178' } },
-  { id: 'parque-agua-fria-parque-ramal1179', type: 'pipeSegment', position: { x: 820, y: 635 }, draggable: false, data: { issueKey: 'CH-1179' } },
-  { id: 'parque-agua-fria-parque-servicio1180', type: 'service', position: { x: 460, y: 725 }, draggable: false, data: { issueKey: 'CH-1180' } },
-  { id: 'parque-agua-fria-parque-servicio1181', type: 'service', position: { x: 532, y: 725 }, draggable: false, data: { issueKey: 'CH-1181' } },
-  { id: 'parque-agua-fria-parque-servicio1182', type: 'service', position: { x: 604, y: 725 }, draggable: false, data: { issueKey: 'CH-1182' } },
-  { id: 'parque-agua-fria-parque-servicio1183', type: 'service', position: { x: 676, y: 725 }, draggable: false, data: { issueKey: 'CH-1183' } },
-  { id: 'parque-agua-fria-parque-servicio1184', type: 'service', position: { x: 748, y: 725 }, draggable: false, data: { issueKey: 'CH-1184' } },
-  { id: 'parque-agua-fria-parque-servicio1185', type: 'service', position: { x: 820, y: 725 }, draggable: false, data: { issueKey: 'CH-1185' } }
+  { id: 'parque-agua-fria-parque-line1173', type: 'pipe', position: { x: 400, y: 580 }, draggable: false, data: { label: '', lineStart: 0, lineEnd: 480, pipeWidth: 480 } },
+  { id: 'parque-agua-fria-parque-ramal1174', type: 'pipeSegment', position: { x: 400, y: 635 }, draggable: false, data: { issueKey: 'CH-1174' } },
+  { id: 'parque-agua-fria-parque-ramal1175', type: 'pipeSegment', position: { x: 496, y: 635 }, draggable: false, data: { issueKey: 'CH-1175' } },
+  { id: 'parque-agua-fria-parque-ramal1176', type: 'pipeSegment', position: { x: 592, y: 635 }, draggable: false, data: { issueKey: 'CH-1176' } },
+  { id: 'parque-agua-fria-parque-ramal1177', type: 'pipeSegment', position: { x: 688, y: 635 }, draggable: false, data: { issueKey: 'CH-1177' } },
+  { id: 'parque-agua-fria-parque-ramal1178', type: 'pipeSegment', position: { x: 784, y: 635 }, draggable: false, data: { issueKey: 'CH-1178' } },
+  { id: 'parque-agua-fria-parque-ramal1179', type: 'pipeSegment', position: { x: 880, y: 635 }, draggable: false, data: { issueKey: 'CH-1179' } },
+  { id: 'parque-agua-fria-parque-servicio1180', type: 'service', position: { x: 400, y: 725 }, draggable: false, data: { issueKey: 'CH-1180' } },
+  { id: 'parque-agua-fria-parque-servicio1181', type: 'service', position: { x: 496, y: 725 }, draggable: false, data: { issueKey: 'CH-1181' } },
+  { id: 'parque-agua-fria-parque-servicio1182', type: 'service', position: { x: 592, y: 725 }, draggable: false, data: { issueKey: 'CH-1182' } },
+  { id: 'parque-agua-fria-parque-servicio1183', type: 'service', position: { x: 688, y: 725 }, draggable: false, data: { issueKey: 'CH-1183' } },
+  { id: 'parque-agua-fria-parque-servicio1184', type: 'service', position: { x: 784, y: 725 }, draggable: false, data: { issueKey: 'CH-1184' } },
+  { id: 'parque-agua-fria-parque-servicio1185', type: 'service', position: { x: 880, y: 725 }, draggable: false, data: { issueKey: 'CH-1185' } }
 ]
 const parqueAguaFriaParqueEdgesInitial: Edge[] = [
   { id: 'parque-agua-fria-parque-succion-puesto', source: 'parque-agua-fria-parque-succion', target: 'parque-agua-fria-parque-puesto', targetHandle: 'in-top', type: 'straight', style: { stroke: '#4A90E2', strokeWidth: 10 } },
@@ -4029,6 +4233,7 @@ const ALL_SYSTEM_NODES: { systemId: string; nodes: Node[] }[] = [
   { systemId: 'gruta2', nodes: gruta2NodesInitial },
   { systemId: 'gruta3', nodes: gruta3NodesInitial },
   { systemId: 'gruta4', nodes: gruta4NodesInitial },
+  { systemId: 'cucufate', nodes: cucufateNodesInitial },
   { systemId: 'fangoEste', nodes: fangoEsteNodesInitial },
   { systemId: 'fangoOeste', nodes: fangoOesteNodesInitial },
   { systemId: 'aljibeFango', nodes: aljibeFangoNodesInitial },
@@ -4360,6 +4565,14 @@ const GRUTA1_BELOW_MANIFOLD_IDS = new Set([
   'manifold', 'ramal1', 'ramal2', 'ramal3', 'ramal4', 'ramal5',
   'servicio1', 'servicio2', 'servicio3', 'servicio4', 'servicio5', 'hidro'
 ])
+/** Cucufate: mismo criterio que Gruta Nº1 — bajar bloque bajo el colector en escritorio. */
+const CUCUFATE_BELOW_MANIFOLD_IDS = new Set([
+  'cucufate-manifold',
+  'cucufate-ramal1',
+  'cucufate-ramal2',
+  'cucufate-servicio1',
+  'cucufate-servicio2'
+])
 /** Sistema Hidro (Gruta, desktop): bloque bajo manifold con offset 80; pulsadores y sus dos servicios bajan un poco más (120). */
 const HIDRO_DESKTOP_OFFSET_Y: Record<string, number> = {
   'hidro-manifold': 80, 'hidro-ramal1': 80, 'hidro-ramal2': 80, 'hidro-ramal3': 80,
@@ -4501,6 +4714,8 @@ function App() {
   const toast = useToast()
   const [grutaNodes, setGrutaNodes, onGrutaNodesChange] = useNodesState(grutaNodesInitial)
   const [grutaEdges, , onGrutaEdgesChange] = useEdgesState(grutaEdgesInitial)
+  const [cucufateNodes, setCucufateNodes, onCucufateNodesChange] = useNodesState(cucufateNodesInitial)
+  const [cucufateEdges, , onCucufateEdgesChange] = useEdgesState(cucufateEdgesInitial)
   const [hidroNodes, setHidroNodes, onHidroNodesChange] = useNodesState(hidroNodesInitial)
   const [hidroEdges, , onHidroEdgesChange] = useEdgesState(hidroEdgesInitial)
   const [gruta2Nodes, setGruta2Nodes, onGruta2NodesChange] = useNodesState(gruta2NodesInitial)
@@ -4805,8 +5020,10 @@ function App() {
   const activeNodes =
     currentSystem === 'gruta1'
       ? grutaNodes
-      : currentSystem === 'hidro'
-        ? hidroNodes
+      : currentSystem === 'cucufate'
+        ? cucufateNodes
+        : currentSystem === 'hidro'
+          ? hidroNodes
         : currentSystem === 'gruta2'
           ? gruta2Nodes
           : currentSystem === 'gruta3'
@@ -4877,16 +5094,18 @@ function App() {
   const activeEdges =
     currentSystem === 'gruta1'
       ? grutaEdges
-      : currentSystem === 'hidro'
-        ? hidroEdges
-        : currentSystem === 'gruta2'
-          ? gruta2Edges
-          : currentSystem === 'gruta3'
-            ? gruta3Edges
-            : currentSystem === 'gruta4'
-              ? gruta4Edges
-              : currentSystem === 'fangoEste'
-                ? fangoEsteEdges
+      : currentSystem === 'cucufate'
+        ? cucufateEdges
+          : currentSystem === 'hidro'
+          ? hidroEdges
+          : currentSystem === 'gruta2'
+            ? gruta2Edges
+            : currentSystem === 'gruta3'
+              ? gruta3Edges
+              : currentSystem === 'gruta4'
+                ? gruta4Edges
+                : currentSystem === 'fangoEste'
+                  ? fangoEsteEdges
                 : currentSystem === 'fangoOeste'
                   ? fangoOesteEdges
                   : currentSystem === 'aljibeFango'
@@ -4949,16 +5168,18 @@ function App() {
   const activeOnNodesChange =
     currentSystem === 'gruta1'
       ? onGrutaNodesChange
-      : currentSystem === 'hidro'
-        ? onHidroNodesChange
-        : currentSystem === 'gruta2'
-          ? onGruta2NodesChange
-          : currentSystem === 'gruta3'
-            ? onGruta3NodesChange
-            : currentSystem === 'gruta4'
-              ? onGruta4NodesChange
-              : currentSystem === 'fangoEste'
-                ? onFangoEsteNodesChange
+      : currentSystem === 'cucufate'
+        ? onCucufateNodesChange
+        : currentSystem === 'hidro'
+          ? onHidroNodesChange
+          : currentSystem === 'gruta2'
+            ? onGruta2NodesChange
+            : currentSystem === 'gruta3'
+              ? onGruta3NodesChange
+              : currentSystem === 'gruta4'
+                ? onGruta4NodesChange
+                : currentSystem === 'fangoEste'
+                  ? onFangoEsteNodesChange
                 : currentSystem === 'fangoOeste'
                   ? onFangoOesteNodesChange
                   : currentSystem === 'aljibeFango'
@@ -5021,16 +5242,18 @@ function App() {
   const activeOnEdgesChange =
     currentSystem === 'gruta1'
       ? onGrutaEdgesChange
-      : currentSystem === 'hidro'
-        ? onHidroEdgesChange
-        : currentSystem === 'gruta2'
-          ? onGruta2EdgesChange
-          : currentSystem === 'gruta3'
-            ? onGruta3EdgesChange
-            : currentSystem === 'gruta4'
-              ? onGruta4EdgesChange
-              : currentSystem === 'fangoEste'
-                ? onFangoEsteEdgesChange
+      : currentSystem === 'cucufate'
+        ? onCucufateEdgesChange
+          : currentSystem === 'hidro'
+          ? onHidroEdgesChange
+          : currentSystem === 'gruta2'
+            ? onGruta2EdgesChange
+            : currentSystem === 'gruta3'
+              ? onGruta3EdgesChange
+              : currentSystem === 'gruta4'
+                ? onGruta4EdgesChange
+                : currentSystem === 'fangoEste'
+                  ? onFangoEsteEdgesChange
                 : currentSystem === 'fangoOeste'
                   ? onFangoOesteEdgesChange
                   : currentSystem === 'aljibeFango'
@@ -5134,6 +5357,12 @@ function App() {
   /** En escritorio: bajar cañería y servicio gotita donde corresponda (Gruta Nº1, Hidro, Gruta Nº2, Gruta Nº4, Aljibe Fango, Ascensor, Cacheutina, Cascada, Agua Fría). */
   const diagramNodesForDesktop = useMemo(() => {
     if (isMobile) return filteredActiveNodes
+    if (currentSystem === 'cucufate') {
+      return filteredActiveNodes.map((node) => {
+        if (!CUCUFATE_BELOW_MANIFOLD_IDS.has(node.id)) return node
+        return { ...node, position: { ...node.position, y: node.position.y + DESKTOP_BLOCK_OFFSET_Y } }
+      })
+    }
     if (currentSystem === 'gruta1') {
       return filteredActiveNodes.map((node) => {
         if (!GRUTA1_BELOW_MANIFOLD_IDS.has(node.id)) return node
@@ -5522,6 +5751,7 @@ function App() {
           return { ...node, data: nextData }
         })
       setGrutaNodes(applyIssueData)
+      setCucufateNodes(applyIssueData)
       setHidroNodes(applyIssueData)
       setGruta2Nodes(applyIssueData)
       setGruta3Nodes(applyIssueData)
@@ -5560,7 +5790,7 @@ function App() {
     } catch {
       // Silenciar errores de polling
     }
-  }, [fetchPumpsBatch, setGrutaNodes, setHidroNodes, setGruta2Nodes, setGruta3Nodes, setGruta4Nodes, setFangoEsteNodes, setFangoOesteNodes, setAljibeFangoNodes, setAscensorNodes, setCacheutinaNodes, setChorroCacheutinaNodes, setCascadaNodes, setAguaFriaNodes, setParqueArriba1Nodes, setParqueBtv2Nodes, setParqueJfv3Nodes, setParqueDuchas4Nodes, setParqueAguaTibiaNodes, setParqueInteractivoNodes, setParqueBurbujaNodes, setParqueLosaRadianteNodes, setParqueBurbujaBanosNodes, setParqueBurbujaExtNodes, setParqueMedialunaExtNodes, setParqueCascadaNodes, setParqueSala1Nodes, setParqueSala2Nodes, setParqueSala3Nodes, setParqueSala4Nodes, setParqueTobogan3Nodes, setParqueCascadaOlasNodes, setParqueChorrosOlasNodes, setParqueAguaFriaParqueNodes, setPozo19Nodes, setPozoLaloNodes, setPozoLuisaNodes])
+  }, [fetchPumpsBatch, setGrutaNodes, setCucufateNodes, setHidroNodes, setGruta2Nodes, setGruta3Nodes, setGruta4Nodes, setFangoEsteNodes, setFangoOesteNodes, setAljibeFangoNodes, setAscensorNodes, setCacheutinaNodes, setChorroCacheutinaNodes, setCascadaNodes, setAguaFriaNodes, setParqueArriba1Nodes, setParqueBtv2Nodes, setParqueJfv3Nodes, setParqueDuchas4Nodes, setParqueAguaTibiaNodes, setParqueInteractivoNodes, setParqueBurbujaNodes, setParqueLosaRadianteNodes, setParqueBurbujaBanosNodes, setParqueBurbujaExtNodes, setParqueMedialunaExtNodes, setParqueCascadaNodes, setParqueSala1Nodes, setParqueSala2Nodes, setParqueSala3Nodes, setParqueSala4Nodes, setParqueTobogan3Nodes, setParqueCascadaOlasNodes, setParqueChorrosOlasNodes, setParqueAguaFriaParqueNodes, setPozo19Nodes, setPozoLaloNodes, setPozoLuisaNodes])
 
   function extractWaterFieldValues(value: any) {
     if (!value) return []

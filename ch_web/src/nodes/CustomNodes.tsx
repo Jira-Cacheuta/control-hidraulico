@@ -157,7 +157,7 @@ export function SuctionNode({ data }: NodeProps) {
 
 // Nodo para cañerías (horizontal) - sin flechas, más gruesas
 export function PipeNode({ data }: NodeProps) {
-  const width = 360
+  const width = typeof data?.pipeWidth === 'number' ? data.pipeWidth : 360
   const rawLineStart = typeof data?.lineStart === 'number' ? data.lineStart : 0
   const rawLineEnd = typeof data?.lineEnd === 'number' ? data.lineEnd : width
   const lineStart = Math.max(0, Math.min(width, rawLineStart))
