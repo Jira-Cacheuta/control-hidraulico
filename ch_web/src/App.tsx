@@ -4473,6 +4473,30 @@ const PARQUE_MEDIALUNAEXT_DESKTOP_OFFSET_Y: Record<string, number> = { 'parque-m
 const PARQUE_CASCADA_DESKTOP_OFFSET_Y: Record<string, number> = { 'parque-cascada-ramal1115': 40, 'parque-cascada-servicio1116': 40 }
 const DESKTOP_BLOCK_OFFSET_Y = 80
 
+function HomeNavButton({ isDarkMode, onGoHome }: { isDarkMode: boolean; onGoHome: () => void }) {
+  return (
+    <Stack align="center" spacing={0.5}>
+      <Button
+        size="xs"
+        minW="32px"
+        h="32px"
+        px={0}
+        borderRadius="10px"
+        variant="outline"
+        colorScheme="blue"
+        onClick={onGoHome}
+        aria-label="Volver al inicio"
+        title="Inicio"
+      >
+        🏠
+      </Button>
+      <Text as="span" fontSize="10px" fontWeight="semibold" lineHeight="1" color={isDarkMode ? 'blue.300' : 'blue.600'}>
+        Inicio
+      </Text>
+    </Stack>
+  )
+}
+
 function App() {
   const toast = useToast()
   const [grutaNodes, setGrutaNodes, onGrutaNodesChange] = useNodesState(grutaNodesInitial)
@@ -7346,20 +7370,7 @@ function App() {
                 gap: 8
               }}
             >
-              <Button
-                size="xs"
-                minW="32px"
-                h="32px"
-                px={0}
-                borderRadius="10px"
-                variant="outline"
-                colorScheme="blue"
-                onClick={goHome}
-                aria-label="Volver al inicio"
-                title="Inicio"
-              >
-                🏠
-              </Button>
+              <HomeNavButton isDarkMode={isDarkMode} onGoHome={goHome} />
               <Button
                 size="xs"
                 minW="32px"
@@ -7401,20 +7412,7 @@ function App() {
         <Container maxW={{ base: 'full', lg: '7xl' }} px={{ base: 2, md: 4 }}>
           <Flex mb={3} justify="flex-end" align="center" flexWrap="wrap" gap={3}>
             <HStack spacing={2}>
-              <Button
-                size="xs"
-                minW="32px"
-                h="32px"
-                px={0}
-                borderRadius="10px"
-                variant="outline"
-                colorScheme="blue"
-                onClick={goHome}
-                aria-label="Volver al inicio"
-                title="Inicio"
-              >
-                🏠
-              </Button>
+              <HomeNavButton isDarkMode={isDarkMode} onGoHome={goHome} />
               <Button
                 size="xs"
                 minW="32px"
@@ -7477,20 +7475,7 @@ function App() {
                 gap: 8
               }}
             >
-              <Button
-                size="xs"
-                minW="32px"
-                h="32px"
-                px={0}
-                borderRadius="10px"
-                variant="outline"
-                colorScheme="blue"
-                onClick={goHome}
-                aria-label="Volver al inicio"
-                title="Inicio"
-              >
-                🏠
-              </Button>
+              <HomeNavButton isDarkMode={isDarkMode} onGoHome={goHome} />
               <Button
                 size="xs"
                 minW="32px"
@@ -7531,20 +7516,7 @@ function App() {
         <Container maxW={{ base: 'full', lg: '7xl' }} px={{ base: 2, md: 4 }}>
           <Flex mb={3} justify="flex-end" align="center" flexWrap="wrap" gap={3}>
             <HStack spacing={2}>
-              <Button
-                size="xs"
-                minW="32px"
-                h="32px"
-                px={0}
-                borderRadius="10px"
-                variant="outline"
-                colorScheme="blue"
-                onClick={goHome}
-                aria-label="Volver al inicio"
-                title="Inicio"
-              >
-                🏠
-              </Button>
+              <HomeNavButton isDarkMode={isDarkMode} onGoHome={goHome} />
               <Button
                 size="xs"
                 minW="32px"
@@ -7672,20 +7644,7 @@ function App() {
               gap: 8
             }}
           >
-            <Button
-              size="xs"
-              minW="32px"
-              h="32px"
-              px={0}
-              borderRadius="10px"
-              variant="outline"
-              colorScheme="blue"
-              onClick={goHome}
-              aria-label="Volver al inicio"
-              title="Inicio"
-            >
-              🏠
-            </Button>
+            <HomeNavButton isDarkMode={isDarkMode} onGoHome={goHome} />
             <Button
               size="xs"
               minW="32px"
@@ -8580,20 +8539,7 @@ function App() {
                 gap: 8
               }}
             >
-              <Button
-                size="xs"
-                minW="32px"
-                h="32px"
-                px={0}
-                borderRadius="10px"
-                variant="outline"
-                colorScheme="blue"
-                onClick={goHome}
-                aria-label="Volver al inicio"
-                title="Inicio"
-              >
-                🏠
-              </Button>
+              <HomeNavButton isDarkMode={isDarkMode} onGoHome={goHome} />
               <Button
                 size="xs"
                 minW="32px"
