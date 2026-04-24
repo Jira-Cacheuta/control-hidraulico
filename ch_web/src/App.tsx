@@ -8043,50 +8043,85 @@ function App() {
             </div>
           </div>
           {currentGroup === 'control' ? (
-            <Box pt={1} px={3} pb={4} overflowY="auto" h="100%" position="absolute" inset={0} top={32} bg={listOverlayBg}>
-              {controlLoading ? (
-                <Flex justify="center" align="center" h="50%">
-                  <Spinner size="lg" color="gray.300" />
-                </Flex>
-              ) : (
-                <Stack spacing={5}>
-                  {['Bomba', 'Soplador', 'Lanchón'].concat(
-                    Object.keys(controlListByType).filter((k) => !['Bomba', 'Soplador', 'Lanchón'].includes(k))
-                  ).map((type) => {
-                    const items = controlListByType[type] || []
-                    if (items.length === 0) return null
-                    return (
-                      <Box key={type}>
-                        <Heading size="sm" mb={2} color={listHeadingColor}>{type}</Heading>
-                        <Stack spacing={2}>
-                          {items.map((item) => (
-                            <Box
-                              key={item.key}
-                              p={3}
-                              bg={listCardBg}
-                              borderRadius="md"
-                              borderWidth="1px"
-                              borderColor={listCardBorder}
-                              cursor="pointer"
-                              onClick={() => openControlEpicModal(item)}
-                              _hover={{ bg: listCardHoverBg }}
-                            >
-                              <HStack justify="space-between" flexWrap="wrap" gap={2}>
-                                <Badge colorScheme="blue">{item.key}</Badge>
-                                {item.status ? transitionBadge(item.status) : <Badge colorScheme="gray">Sin estado</Badge>}
-                              </HStack>
-                              <Text fontSize="sm" fontWeight="medium" mt={1} color={listCardText}>{item.summary || item.key}</Text>
-                              <Text fontSize="xs" color={listCardMeta}>
-                                Epic: {item.epicSummary ? `${item.epicSummary} (${item.epicKey})` : item.epicKey || 'Sin Epic'}
-                              </Text>
-                            </Box>
-                          ))}
-                        </Stack>
-                      </Box>
-                    )
-                  })}
-                </Stack>
-              )}
+            <Box
+              position="absolute"
+              left={0}
+              right={0}
+              bottom={0}
+              top="max(88px, calc(env(safe-area-inset-top, 0px) + 72px))"
+              bg={listOverlayBg}
+              display="flex"
+              flexDirection="column"
+              minH={0}
+              zIndex={5}
+            >
+              <Box
+                flex={1}
+                minH={0}
+                overflowY="auto"
+                overflowX="hidden"
+                px={3}
+                pt={2}
+                pb="max(48px, calc(env(safe-area-inset-bottom, 0px) + 32px))"
+                style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain', scrollbarGutter: 'stable' }}
+              >
+                {controlLoading ? (
+                  <Flex justify="center" align="center" minH="40vh">
+                    <Spinner size="lg" color="gray.300" />
+                  </Flex>
+                ) : (
+                  <Stack spacing={5}>
+                    {['Bomba', 'Soplador', 'Lanchón'].concat(
+                      Object.keys(controlListByType).filter((k) => !['Bomba', 'Soplador', 'Lanchón'].includes(k))
+                    ).map((type) => {
+                      const items = controlListByType[type] || []
+                      if (items.length === 0) return null
+                      return (
+                        <Box key={type}>
+                          <Heading
+                            size="sm"
+                            mb={2}
+                            color={listHeadingColor}
+                            position="sticky"
+                            top={0}
+                            zIndex={1}
+                            bg={listOverlayBg}
+                            py={2}
+                            borderBottomWidth="1px"
+                            borderColor={listCardBorder}
+                          >
+                            {type}
+                          </Heading>
+                          <Stack spacing={2}>
+                            {items.map((item) => (
+                              <Box
+                                key={item.key}
+                                p={3}
+                                bg={listCardBg}
+                                borderRadius="md"
+                                borderWidth="1px"
+                                borderColor={listCardBorder}
+                                cursor="pointer"
+                                onClick={() => openControlEpicModal(item)}
+                                _hover={{ bg: listCardHoverBg }}
+                              >
+                                <HStack justify="space-between" flexWrap="wrap" gap={2}>
+                                  <Badge colorScheme="blue">{item.key}</Badge>
+                                  {item.status ? transitionBadge(item.status) : <Badge colorScheme="gray">Sin estado</Badge>}
+                                </HStack>
+                                <Text fontSize="sm" fontWeight="medium" mt={1} color={listCardText}>{item.summary || item.key}</Text>
+                                <Text fontSize="xs" color={listCardMeta}>
+                                  Epic: {item.epicSummary ? `${item.epicSummary} (${item.epicKey})` : item.epicKey || 'Sin Epic'}
+                                </Text>
+                              </Box>
+                            ))}
+                          </Stack>
+                        </Box>
+                      )
+                    })}
+                  </Stack>
+                )}
+              </Box>
               <Modal isOpen={!!controlEpicModalItem} onClose={closeControlEpicModal} isCentered size="xs">
                 <ModalOverlay bg="transparent" />
                 <ModalContent maxW="92vw">
@@ -8935,50 +8970,85 @@ function App() {
               </div>
             </div>
             {currentGroup === 'control' ? (
-            <Box pt={1} px={3} pb={4} overflowY="auto" h="100%" position="absolute" inset={0} top={32} bg={listOverlayBg}>
-              {controlLoading ? (
-                <Flex justify="center" align="center" h="50%">
-                  <Spinner size="lg" color="gray.300" />
-                </Flex>
-              ) : (
-                <Stack spacing={5}>
-                  {['Bomba', 'Soplador', 'Lanchón'].concat(
-                    Object.keys(controlListByType).filter((k) => !['Bomba', 'Soplador', 'Lanchón'].includes(k))
-                  ).map((type) => {
-                    const items = controlListByType[type] || []
-                    if (items.length === 0) return null
-                    return (
-                      <Box key={type}>
-                        <Heading size="sm" mb={2} color={listHeadingColor}>{type}</Heading>
-                        <Stack spacing={2}>
-                          {items.map((item) => (
-                            <Box
-                              key={item.key}
-                              p={3}
-                              bg={listCardBg}
-                              borderRadius="md"
-                              borderWidth="1px"
-                              borderColor={listCardBorder}
-                              cursor="pointer"
-                              onClick={() => openControlEpicModal(item)}
-                              _hover={{ bg: listCardHoverBg }}
-                            >
-                              <HStack justify="space-between" flexWrap="wrap" gap={2}>
-                                <Badge colorScheme="blue">{item.key}</Badge>
-                                {item.status ? transitionBadge(item.status) : <Badge colorScheme="gray">Sin estado</Badge>}
-                              </HStack>
-                              <Text fontSize="sm" fontWeight="medium" mt={1} color={listCardText}>{item.summary || item.key}</Text>
-                              <Text fontSize="xs" color={listCardMeta}>
-                                Epic: {item.epicSummary ? `${item.epicSummary} (${item.epicKey})` : item.epicKey || 'Sin Epic'}
-                              </Text>
-                            </Box>
-                          ))}
-                        </Stack>
-                      </Box>
-                    )
-                  })}
-                </Stack>
-              )}
+            <Box
+              position="absolute"
+              left={0}
+              right={0}
+              bottom={0}
+              top="max(88px, calc(env(safe-area-inset-top, 0px) + 72px))"
+              bg={listOverlayBg}
+              display="flex"
+              flexDirection="column"
+              minH={0}
+              zIndex={5}
+            >
+              <Box
+                flex={1}
+                minH={0}
+                overflowY="auto"
+                overflowX="hidden"
+                px={3}
+                pt={2}
+                pb="max(48px, calc(env(safe-area-inset-bottom, 0px) + 32px))"
+                style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain', scrollbarGutter: 'stable' }}
+              >
+                {controlLoading ? (
+                  <Flex justify="center" align="center" minH="40vh">
+                    <Spinner size="lg" color="gray.300" />
+                  </Flex>
+                ) : (
+                  <Stack spacing={5}>
+                    {['Bomba', 'Soplador', 'Lanchón'].concat(
+                      Object.keys(controlListByType).filter((k) => !['Bomba', 'Soplador', 'Lanchón'].includes(k))
+                    ).map((type) => {
+                      const items = controlListByType[type] || []
+                      if (items.length === 0) return null
+                      return (
+                        <Box key={type}>
+                          <Heading
+                            size="sm"
+                            mb={2}
+                            color={listHeadingColor}
+                            position="sticky"
+                            top={0}
+                            zIndex={1}
+                            bg={listOverlayBg}
+                            py={2}
+                            borderBottomWidth="1px"
+                            borderColor={listCardBorder}
+                          >
+                            {type}
+                          </Heading>
+                          <Stack spacing={2}>
+                            {items.map((item) => (
+                              <Box
+                                key={item.key}
+                                p={3}
+                                bg={listCardBg}
+                                borderRadius="md"
+                                borderWidth="1px"
+                                borderColor={listCardBorder}
+                                cursor="pointer"
+                                onClick={() => openControlEpicModal(item)}
+                                _hover={{ bg: listCardHoverBg }}
+                              >
+                                <HStack justify="space-between" flexWrap="wrap" gap={2}>
+                                  <Badge colorScheme="blue">{item.key}</Badge>
+                                  {item.status ? transitionBadge(item.status) : <Badge colorScheme="gray">Sin estado</Badge>}
+                                </HStack>
+                                <Text fontSize="sm" fontWeight="medium" mt={1} color={listCardText}>{item.summary || item.key}</Text>
+                                <Text fontSize="xs" color={listCardMeta}>
+                                  Epic: {item.epicSummary ? `${item.epicSummary} (${item.epicKey})` : item.epicKey || 'Sin Epic'}
+                                </Text>
+                              </Box>
+                            ))}
+                          </Stack>
+                        </Box>
+                      )
+                    })}
+                  </Stack>
+                )}
+              </Box>
               <Modal isOpen={!!controlEpicModalItem} onClose={closeControlEpicModal} isCentered size="md">
                 <ModalOverlay bg="transparent" />
                 <ModalContent>
