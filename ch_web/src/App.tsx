@@ -96,6 +96,49 @@ function formatFechaHoraLocal(iso?: string | null): string {
   if (Number.isNaN(t)) return '—'
   return new Intl.DateTimeFormat('es-AR', { dateStyle: 'long', timeStyle: 'short' }).format(t)
 }
+
+/** Icono alineado con los nodos del diagrama (Control hidráulico): gota vs nube. */
+function ServicioDiagramTypeIcon({ kind, isDarkMode }: { kind: 'service' | 'cloudService'; isDarkMode: boolean }) {
+  const title = kind === 'service' ? 'Servicio de agua (gota en el diagrama)' : 'Servicio tipo nube en el diagrama'
+  const h = 20
+  if (kind === 'service') {
+    const w = 20
+    return (
+      <Box
+        as="span"
+        display="inline-flex"
+        alignItems="center"
+        flexShrink={0}
+        title={title}
+        aria-label={title}
+      >
+        <svg width={w} height={h} viewBox="0 0 120 120" aria-hidden>
+          <path
+            d="M60 12 C42 36 30 52 30 70 C30 92 43 106 60 106 C77 106 90 92 90 70 C90 52 78 36 60 12 Z"
+            fill="#90CDF4"
+            stroke="#2B6CB0"
+            strokeWidth="5"
+          />
+        </svg>
+      </Box>
+    )
+  }
+  const w = 26
+  const cloudFill = isDarkMode ? '#E2E8F0' : '#FFFFFF'
+  const cloudStroke = isDarkMode ? '#94A3B8' : '#A0AEC0'
+  return (
+    <Box as="span" display="inline-flex" alignItems="center" flexShrink={0} title={title} aria-label={title}>
+      <svg width={w} height={16} viewBox="0 0 140 100" aria-hidden>
+        <path
+          d="M40 70 C25 70 15 60 15 48 C15 36 25 27 38 27 C42 16 52 10 64 10 C78 10 90 18 94 30 C110 30 123 42 123 58 C123 73 111 84 96 84 L42 84 C30 84 20 78 20 68"
+          fill={cloudFill}
+          stroke={cloudStroke}
+          strokeWidth="5"
+        />
+      </svg>
+    </Box>
+  )
+}
 const VIEW_BOUNDS: [[number, number], [number, number]] = [[-80, -80], [1080, 1100]]
 const WATER_FIELD_ID = 'customfield_11815'
 const WATER_FIELD_LABEL = 'Alimentación de agua'
@@ -6998,10 +7041,13 @@ function App() {
                               onClick={s.issueKey ? () => openServiciosModal(s) : undefined}
                               _hover={s.issueKey ? { bg: listCardHoverBg } : undefined}
                             >
-                              <HStack justify="space-between" flexWrap="wrap" gap={2}>
-                                <Text fontSize="sm" fontWeight="medium" color={listCardText}>
-                                  {(s.issueKey && serviceIssuesData[s.issueKey]?.summary) || s.label || s.id}
-                                </Text>
+                              <HStack justify="space-between" flexWrap="wrap" gap={2} align="center">
+                                <HStack spacing={2} flex={1} minW={0} align="center">
+                                  <Text fontSize="sm" fontWeight="medium" color={listCardText} noOfLines={2}>
+                                    {(s.issueKey && serviceIssuesData[s.issueKey]?.summary) || s.label || s.id}
+                                  </Text>
+                                  <ServicioDiagramTypeIcon kind={s.type} isDarkMode={isDarkMode} />
+                                </HStack>
                                 {s.issueKey && serviceIssuesData[s.issueKey]?.status != null ? (
                                   transitionBadge(serviceIssuesData[s.issueKey].status!)
                                 ) : s.issueKey ? (
@@ -7124,10 +7170,13 @@ function App() {
                               onClick={s.issueKey ? () => openServiciosModal(s) : undefined}
                               _hover={s.issueKey ? { bg: listCardHoverBg } : undefined}
                             >
-                              <HStack justify="space-between" flexWrap="wrap" gap={2}>
-                                <Text fontSize="sm" fontWeight="medium" color={listCardText}>
-                                  {(s.issueKey && serviceIssuesData[s.issueKey]?.summary) || s.label || s.id}
-                                </Text>
+                              <HStack justify="space-between" flexWrap="wrap" gap={2} align="center">
+                                <HStack spacing={2} flex={1} minW={0} align="center">
+                                  <Text fontSize="sm" fontWeight="medium" color={listCardText} noOfLines={2}>
+                                    {(s.issueKey && serviceIssuesData[s.issueKey]?.summary) || s.label || s.id}
+                                  </Text>
+                                  <ServicioDiagramTypeIcon kind={s.type} isDarkMode={isDarkMode} />
+                                </HStack>
                                 {s.issueKey && serviceIssuesData[s.issueKey]?.status != null ? (
                                   transitionBadge(serviceIssuesData[s.issueKey].status!)
                                 ) : s.issueKey ? (
