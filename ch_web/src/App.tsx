@@ -124,8 +124,9 @@ function ServicioDiagramTypeIcon({ kind, isDarkMode }: { kind: 'service' | 'clou
     )
   }
   const w = 26
-  const cloudFill = isDarkMode ? '#E2E8F0' : '#FFFFFF'
-  const cloudStroke = isDarkMode ? '#94A3B8' : '#A0AEC0'
+  /** En modo claro la tarjeta es blanca: mismo fill que el diagrama haría la nube invisible. */
+  const cloudFill = isDarkMode ? '#E2E8F0' : '#E2E8F0'
+  const cloudStroke = isDarkMode ? '#94A3B8' : '#64748B'
   return (
     <Box as="span" display="inline-flex" alignItems="center" flexShrink={0} title={title} aria-label={title}>
       <svg width={w} height={16} viewBox="0 0 140 100" aria-hidden>

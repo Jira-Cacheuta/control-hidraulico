@@ -1153,6 +1153,10 @@ app.use(
         res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate')
         return
       }
+      if (base === 'sw.js' || base.startsWith('workbox-')) {
+        res.setHeader('Cache-Control', 'no-cache, must-revalidate')
+        return
+      }
       if (
         base === 'favicon.ico' ||
         base === 'apple-touch-icon.png' ||
