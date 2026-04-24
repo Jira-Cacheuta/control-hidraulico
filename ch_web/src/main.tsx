@@ -2,11 +2,11 @@ import './installFavicon.ts'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { ChakraProvider, extendTheme } from '@chakra-ui/react'
-import { registerSW } from 'virtual:pwa-register'
 import './index.css'
 import App from './App.tsx'
+import { initPwaRegistration } from './pwaRegister'
 
-registerSW({ immediate: true })
+initPwaRegistration()
 
 const theme = extendTheme({})
 

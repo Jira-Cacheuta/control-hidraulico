@@ -1,6 +1,7 @@
 import { Box, Container, Heading, Text, useToast, Flex, Divider, useBreakpointValue, Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody, ModalFooter, Button, SimpleGrid, Badge, HStack, FormControl, FormLabel, Select, Input, Textarea, Stack, Spinner } from '@chakra-ui/react'
 import ReactFlow, { Background, useNodesState, useEdgesState } from 'reactflow'
 import { nodeTypes } from './nodes/CustomNodes'
+import { CH_PWA_UPDATE_EVENT, checkForServiceWorkerUpdate, reloadAppWithNewServiceWorker } from './pwaRegister'
 import type { Connection, Edge, Node } from 'reactflow'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import 'reactflow/dist/style.css'
@@ -4754,8 +4755,86 @@ function HomeNavButton({ isDarkMode, onGoHome }: { isDarkMode: boolean; onGoHome
   )
 }
 
+/** Refresca datos de Jira en vivo y pide al SW que busque una versión nueva (útil en PWA instalada). */
+function DataRefreshToolbarButton({ onRefresh }: { onRefresh: () => void }) {
+  return (
+    <Button
+      size="xs"
+      minW="32px"
+      h="32px"
+      px={0}
+      borderRadius="10px"
+      variant="outline"
+      colorScheme="cyan"
+      onClick={onRefresh}
+      aria-label="Actualizar datos desde el servidor y comprobar nueva versión de la app"
+      title="Actualizar estados (Jira, diagrama, listas) y buscar actualización de la app"
+    >
+      🔄
+    </Button>
+  )
+}
+
 function App() {
   const toast = useToast()
+  const [manualRefreshTick, setManualRefreshTick] = useState(0)
+
+  const bumpManualDataRefresh = useCallback(() => {
+    checkForServiceWorkerUpdate()
+    setManualRefreshTick((t) => t + 1)
+    toast({
+      title: 'Actualizando datos',
+      description: 'Se vuelven a pedir estados y resúmenes al servidor.',
+      status: 'info',
+      duration: 2000
+    })
+  }, [toast])
+
+  useEffect(() => {
+    const handler = () => {
+      if (toast.isActive('ch-pwa-update')) return
+      toast({
+        id: 'ch-pwa-update',
+        title: 'Nueva versión de la aplicación',
+        description:
+          'Hay cambios para la interfaz o la app instalada. Recargá para aplicarlos.',
+        status: 'info',
+        duration: null,
+        isClosable: true,
+        render: ({ onClose }) => (
+          <Box color="white" p={3} bg="blue.700" borderRadius="md" boxShadow="lg" maxW="sm">
+            <Text fontWeight="bold" mb={2}>
+              Nueva versión lista
+            </Text>
+            <Text fontSize="sm" mb={3} opacity={0.95}>
+              En la PWA de escritorio, recargar asegura ver íconos y últimos cambios.
+            </Text>
+            <HStack spacing={2} flexWrap="wrap">
+              <Button
+                size="sm"
+                colorScheme="blue"
+                bg="white"
+                color="blue.800"
+                _hover={{ bg: 'blue.50' }}
+                onClick={() => {
+                  onClose()
+                  void reloadAppWithNewServiceWorker()
+                }}
+              >
+                Recargar ahora
+              </Button>
+              <Button size="sm" variant="ghost" color="white" onClick={onClose}>
+                Después
+              </Button>
+            </HStack>
+          </Box>
+        )
+      })
+    }
+    window.addEventListener(CH_PWA_UPDATE_EVENT, handler)
+    return () => window.removeEventListener(CH_PWA_UPDATE_EVENT, handler)
+  }, [toast])
+
   const [grutaNodes, setGrutaNodes, onGrutaNodesChange] = useNodesState(grutaNodesInitial)
   const [grutaEdges, , onGrutaEdgesChange] = useEdgesState(grutaEdgesInitial)
   const [cucufateNodes, setCucufateNodes, onCucufateNodesChange] = useNodesState(cucufateNodesInitial)
@@ -6000,7 +6079,7 @@ function App() {
     return () => {
       if (timer) window.clearInterval(timer)
     }
-  }, [loadIssues])
+  }, [loadIssues, manualRefreshTick])
 
   useEffect(() => {
     if ((currentGroup !== 'servicios' && appEntry !== 'servicios') || serviceIssueKeys.length === 0) return
@@ -6029,7 +6108,7 @@ function App() {
         if (!cancelled) setServiceIssuesLoading(false)
       })
     return () => { cancelled = true }
-  }, [appEntry, currentGroup, serviceIssueKeys])
+  }, [appEntry, currentGroup, serviceIssueKeys, manualRefreshTick])
 
   useEffect(() => {
     if (currentGroup !== 'control') return
@@ -6047,7 +6126,7 @@ function App() {
         if (!cancelled) setControlLoading(false)
       })
     return () => { cancelled = true }
-  }, [currentGroup])
+  }, [currentGroup, manualRefreshTick])
 
   useEffect(() => {
     if (appEntry !== 'piletas' && currentGroup !== 'controlPiletas') return
@@ -6067,7 +6146,7 @@ function App() {
         if (!cancelled) setControlPiletasLoading(false)
       })
     return () => { cancelled = true }
-  }, [appEntry, currentGroup])
+  }, [appEntry, currentGroup, manualRefreshTick])
 
   const controlPiletasFiltered = useMemo(() => {
     return controlPiletasIssues.filter((i) => {
@@ -7651,6 +7730,7 @@ function App() {
               }}
             >
               <HomeNavButton isDarkMode={isDarkMode} onGoHome={goHome} />
+              <DataRefreshToolbarButton onRefresh={bumpManualDataRefresh} />
               <Button
                 size="xs"
                 minW="32px"
@@ -7693,6 +7773,7 @@ function App() {
           <Flex mb={3} justify="flex-end" align="center" flexWrap="wrap" gap={3}>
             <HStack spacing={2}>
               <HomeNavButton isDarkMode={isDarkMode} onGoHome={goHome} />
+              <DataRefreshToolbarButton onRefresh={bumpManualDataRefresh} />
               <Button
                 size="xs"
                 minW="32px"
@@ -7756,6 +7837,7 @@ function App() {
               }}
             >
               <HomeNavButton isDarkMode={isDarkMode} onGoHome={goHome} />
+              <DataRefreshToolbarButton onRefresh={bumpManualDataRefresh} />
               <Button
                 size="xs"
                 minW="32px"
@@ -7797,6 +7879,7 @@ function App() {
           <Flex mb={3} justify="flex-end" align="center" flexWrap="wrap" gap={3}>
             <HStack spacing={2}>
               <HomeNavButton isDarkMode={isDarkMode} onGoHome={goHome} />
+              <DataRefreshToolbarButton onRefresh={bumpManualDataRefresh} />
               <Button
                 size="xs"
                 minW="32px"
@@ -7925,6 +8008,7 @@ function App() {
             }}
           >
             <HomeNavButton isDarkMode={isDarkMode} onGoHome={goHome} />
+            <DataRefreshToolbarButton onRefresh={bumpManualDataRefresh} />
             <Button
               size="xs"
               minW="32px"
@@ -8820,6 +8904,7 @@ function App() {
               }}
             >
               <HomeNavButton isDarkMode={isDarkMode} onGoHome={goHome} />
+              <DataRefreshToolbarButton onRefresh={bumpManualDataRefresh} />
               <Button
                 size="xs"
                 minW="32px"
