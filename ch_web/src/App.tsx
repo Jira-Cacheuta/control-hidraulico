@@ -5797,7 +5797,13 @@ function App() {
         fetch(`${API_BASE_URL}/api/water-feeds?t=${Date.now()}`, { cache: 'no-store' })
       ])
 
-      let data: { issues?: unknown; error?: unknown }
+      let data: { issues?: unknown; error?: unknown; _chDiag?: {
+        sampleKey?: string
+        httpStatus?: number
+        messages?: string[]
+        jiraHost?: string
+        note?: string
+      } }
       try {
         data = await issuesRes.json()
       } catch {
@@ -5825,8 +5831,13 @@ function App() {
       }
 
       if (data.issues.length === 0 && keyArray.length > 0) {
+        const d = data._chDiag
+        const jiraBit =
+          d && typeof d.httpStatus === 'number'
+            ? ` · Muestra Jira: ${d.sampleKey ?? '?'} → HTTP ${d.httpStatus}${d.jiraHost ? ` · host ${d.jiraHost}` : ''}${d.messages?.length ? ` · ${d.messages.join('; ')}` : ''}${d.note ? ` · ${d.note}` : ''}`
+            : ''
         setDiagramDataError(
-          'Jira devolvió 0 incidencias para las keys del diagrama. En Red → clic en la petición issues → Encabezados: mirá X-CH-Jira-Raw-Fetched (0 = Jira no devolvió filas). Revisá pm2 logs ch-backend, JIRA_BASE_URL y permisos de la API.'
+          `Jira devolvió 0 incidencias para las keys del diagrama (X-CH-Jira-Raw-Fetched: 0).${jiraBit} Revisá token, correo de la API, permiso de ver el proyecto y que JIRA_BASE_URL sea el sitio correcto (sin /jira al final).`
         )
       } else {
         setDiagramDataError(null)

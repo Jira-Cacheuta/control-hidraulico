@@ -32,6 +32,34 @@ function requireEnv(value, name) {
 
 const jiraBaseUrl = () => (process.env.JIRA_BASE_URL || '').replace(/\/+$/, '')
 
+function jiraHostForDiag() {
+  try {
+    return new URL(jiraBaseUrl()).hostname
+  } catch {
+    return '(JIRA_BASE_URL no es una URL válida)'
+  }
+}
+
+/** Una sola petición GET issue para saber 401/403/404 cuando todo lo demás devuelve vacío. */
+async function jiraProbeSampleIssue(jira, issueKey) {
+  const sampleKey = String(issueKey || '').trim()
+  if (!sampleKey) return null
+  const k = encodeURIComponent(sampleKey)
+  try {
+    await jira.get(`/issue/${k}`, { params: { fields: 'summary' } })
+    return { sampleKey, httpStatus: 200, messages: [] }
+  } catch (e) {
+    const st = e?.response?.status
+    const data = e?.response?.data
+    const messages = []
+    if (Array.isArray(data?.errorMessages)) messages.push(...data.errorMessages)
+    if (data?.errors && typeof data.errors === 'object') {
+      messages.push(...Object.entries(data.errors).map(([a, b]) => `${a}: ${b}`))
+    }
+    return { sampleKey, httpStatus: st || 0, messages }
+  }
+}
+
 function getJiraClient() {
   requireEnv(JIRA_BASE_URL, 'JIRA_BASE_URL')
   requireEnv(JIRA_EMAIL, 'JIRA_EMAIL')
@@ -757,7 +785,20 @@ async function fetchAndNormalizeIssuesList(jira, keys) {
     }
   })
 
-  return { normalized, meta: { keysRequested: keys.length, rawFetched, distinctKeys: issuesList.length } }
+  let jiraProbe = null
+  if (keys.length > 0 && rawFetched === 0) {
+    const probeKey = keys.find((k) => /^[A-Z]+-\d+$/i.test(String(k))) || keys[0]
+    jiraProbe = await jiraProbeSampleIssue(jira, probeKey)
+    if (jiraProbe) {
+      jiraProbe.jiraHost = jiraHostForDiag()
+      if (jiraProbe.httpStatus === 200) {
+        jiraProbe.note =
+          'GET /issue/{key} OK para la muestra pero el acumulado sigue en 0: revisá logs del servidor y la búsqueda JQL.'
+      }
+    }
+  }
+
+  return { normalized, meta: { keysRequested: keys.length, rawFetched, distinctKeys: issuesList.length, jiraProbe } }
 }
 
 function sendIssuesJson(res, payload) {
@@ -768,8 +809,25 @@ function sendIssuesJson(res, payload) {
     res.setHeader('X-CH-Keys-Requested', String(meta.keysRequested))
     res.setHeader('X-CH-Jira-Raw-Fetched', String(meta.rawFetched))
     res.setHeader('X-CH-Jira-Distinct', String(meta.distinctKeys))
+    if (meta.jiraProbe) {
+      res.setHeader('X-CH-Jira-Sample-Key', String(meta.jiraProbe.sampleKey || '').slice(0, 48))
+      res.setHeader('X-CH-Jira-Sample-Status', String(meta.jiraProbe.httpStatus ?? ''))
+      if (meta.jiraProbe.jiraHost) {
+        res.setHeader('X-CH-Jira-Host', String(meta.jiraProbe.jiraHost).slice(0, 128))
+      }
+    }
   }
-  res.json({ issues: normalized })
+  const body = { issues: normalized }
+  if (normalized.length === 0 && meta?.jiraProbe) {
+    body._chDiag = {
+      sampleKey: meta.jiraProbe.sampleKey,
+      httpStatus: meta.jiraProbe.httpStatus,
+      messages: meta.jiraProbe.messages,
+      jiraHost: meta.jiraProbe.jiraHost,
+      ...(meta.jiraProbe.note ? { note: meta.jiraProbe.note } : {})
+    }
+  }
+  res.json(body)
 }
 
 app.get('/api/issues', async (req, res) => {
