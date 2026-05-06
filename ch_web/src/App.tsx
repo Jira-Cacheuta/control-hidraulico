@@ -9,6 +9,8 @@ import './App.css'
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? ''
 const ISSUE_POLL_MS = 10000
+/** Evita que el aviso quede bajo `.system-menu` / barra superior (z-index 20 en App.css). */
+const DIAGRAM_DATA_ALERT_TOP_PAD = 'max(102px, calc(env(safe-area-inset-top, 0px) + 80px))'
 
 type ControlPiletasMapId = 'gruta' | 'parque-arriba' | 'parque-abajo'
 
@@ -8529,9 +8531,21 @@ function App() {
             minH={diagramAreaHeight != null ? `${diagramAreaHeight}px` : '100dvh'}
             display="flex"
             flexDirection="column"
+            pt={diagramDataError ? DIAGRAM_DATA_ALERT_TOP_PAD : 0}
           >
             {diagramDataError && (
-              <Alert status="error" flexShrink={0} borderRadius={0} fontSize="sm" py={2} px={3}>
+              <Alert
+                status="error"
+                flexShrink={0}
+                borderRadius="md"
+                fontSize="sm"
+                py={2}
+                px={3}
+                mx={2}
+                mb={1}
+                boxShadow="md"
+                zIndex={1}
+              >
                 <AlertIcon />
                 <Box>
                   <AlertTitle fontSize="sm">Estados del diagrama no disponibles</AlertTitle>
@@ -9201,9 +9215,26 @@ function App() {
               </Modal>
             </Box>
             ) : (
-            <Box position="absolute" inset={0} display="flex" flexDirection="column">
+            <Box
+              position="absolute"
+              inset={0}
+              display="flex"
+              flexDirection="column"
+              pt={diagramDataError ? DIAGRAM_DATA_ALERT_TOP_PAD : 0}
+            >
               {diagramDataError && (
-                <Alert status="error" flexShrink={0} borderRadius={0} fontSize="sm" py={2} px={3}>
+                <Alert
+                  status="error"
+                  flexShrink={0}
+                  borderRadius="md"
+                  fontSize="sm"
+                  py={2}
+                  px={3}
+                  mx={{ base: 2, md: 3 }}
+                  mb={1}
+                  boxShadow="md"
+                  zIndex={1}
+                >
                   <AlertIcon />
                   <Box>
                     <AlertTitle fontSize="sm">Estados del diagrama no disponibles</AlertTitle>
