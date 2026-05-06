@@ -155,7 +155,8 @@ async function getIssueWithLinks(jira, issueKey, epicFieldId) {
  * Si todo devuelve vacío, el caller puede usar fetchIssuesByKeysDirect (GET /issue/{key}).
  */
 async function fetchIssuesByJql(jira, jql) {
-  const fieldsArr = ['summary', 'status', 'issuetype', 'updated', 'customfield_11815']
+  /** Sin customfield aquí: si ese id no aplica o falla, Jira puede rechazar toda la petición. */
+  const fieldsArr = ['summary', 'status', 'issuetype', 'updated']
   const maxResults = 100
 
   async function collectIssues(fetchFn) {
@@ -178,7 +179,7 @@ async function fetchIssuesByJql(jira, jql) {
         jql,
         maxResults,
         fields: fieldsArr,
-        fieldsByKeys: true,
+        fieldsByKeys: false,
         ...(token ? { nextPageToken: token } : {})
       }
       const { data } = await jira.post('/search/jql', body)
@@ -209,7 +210,7 @@ async function fetchIssuesByJql(jira, jql) {
 
 /** Último recurso: una petición por key (mismo shape que devuelve /search/jql). */
 async function fetchIssuesByKeysDirect(jira, keys) {
-  const fields = 'summary,status,issuetype,updated,customfield_11815'
+  const fields = 'summary,status,issuetype,updated'
   const out = []
   const concurrency = 12
   for (let i = 0; i < keys.length; i += concurrency) {
@@ -266,6 +267,9 @@ const WATER_FEED_PIPE_KEYS = {
   pozoLalo: 'CH-990',
   pozoLuisa: 'CH-996'
 }
+
+/** Misma lista que en el front: alimentación de agua (se pide customfield_11815 aparte). */
+const WATER_FIELD_ISSUE_KEYS = ['CH-997', 'CH-1022', 'CH-1038', 'CH-1062']
 
 const CONTROL_PILETAS_KEY_MIN = 1
 const CONTROL_PILETAS_KEY_MAX = 44
@@ -713,6 +717,21 @@ app.get('/api/issues', async (req, res) => {
     const epicFieldId = await getEpicFieldId(jira)
     const issuesList = Array.from(unique.values())
 
+    for (const wfKey of WATER_FIELD_ISSUE_KEYS) {
+      const issue = issuesList.find((i) => i.key === wfKey)
+      if (!issue?.fields) continue
+      try {
+        const { data } = await jira.get(`/issue/${encodeURIComponent(wfKey)}`, {
+          params: { fields: 'customfield_11815' }
+        })
+        if (data?.fields && Object.prototype.hasOwnProperty.call(data.fields, 'customfield_11815')) {
+          issue.fields.customfield_11815 = data.fields.customfield_11815
+        }
+      } catch (_) {
+        /* campo opcional */
+      }
+    }
+
     const normalized = await mapInBatches(issuesList, 6, async (issue) => {
       const base = {
         key: issue.key,
@@ -737,6 +756,8 @@ app.get('/api/issues', async (req, res) => {
       }
     })
 
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private')
+    res.setHeader('Pragma', 'no-cache')
     res.json({ issues: normalized })
   } catch (error) {
     const message = error?.response?.data?.errorMessages || error?.response?.data?.errors?.join?.(' ') || error?.message

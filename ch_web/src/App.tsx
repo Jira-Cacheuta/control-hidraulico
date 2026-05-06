@@ -5772,7 +5772,11 @@ function App() {
     }
   }, [])
 
+  const loadIssuesInFlightRef = useRef(false)
+
   const loadIssues = useCallback(async () => {
+    if (loadIssuesInFlightRef.current) return
+    loadIssuesInFlightRef.current = true
     try {
       const pumpsMap = await fetchPumpsBatch()
       const keySet = new Set<string>(DIAGRAM_ISSUE_KEYS)
@@ -5788,7 +5792,7 @@ function App() {
           ? `${API_BASE_URL}/api/issues?keys=${encodeURIComponent(keysParam)}`
           : `${API_BASE_URL}/api/issues`
       const [issuesRes, waterLinksRes] = await Promise.all([
-        fetch(issuesUrl),
+        fetch(issuesUrl, { cache: 'no-store' }),
         fetch(`${API_BASE_URL}/api/water-feeds?t=${Date.now()}`, { cache: 'no-store' })
       ])
 
@@ -5951,6 +5955,8 @@ function App() {
       setPozoLuisaNodes(applyIssueData)
     } catch (e) {
       setDiagramDataError(`Error de red o al leer datos: ${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      loadIssuesInFlightRef.current = false
     }
   }, [fetchPumpsBatch, setGrutaNodes, setCucufateNodes, setHidroNodes, setGruta2Nodes, setGruta3Nodes, setGruta4Nodes, setFangoEsteNodes, setFangoOesteNodes, setAljibeFangoNodes, setAscensorNodes, setCacheutinaNodes, setChorroCacheutinaNodes, setCascadaNodes, setAguaFriaNodes, setParqueArriba1Nodes, setParqueBtv2Nodes, setParqueJfv3Nodes, setParqueDuchas4Nodes, setParqueAguaTibiaNodes, setParqueInteractivoNodes, setParqueBurbujaNodes, setParqueLosaRadianteNodes, setParqueBurbujaBanosNodes, setParqueBurbujaExtNodes, setParqueMedialunaExtNodes, setParqueCascadaNodes, setParqueSala1Nodes, setParqueSala2Nodes, setParqueSala3Nodes, setParqueSala4Nodes, setParqueTobogan3Nodes, setParqueCascadaOlasNodes, setParqueChorrosOlasNodes, setParqueAguaFriaParqueNodes, setPozo19Nodes, setPozoLaloNodes, setPozoLuisaNodes])
 
