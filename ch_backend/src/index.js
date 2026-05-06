@@ -148,31 +148,92 @@ async function getIssueWithLinks(jira, issueKey, epicFieldId) {
   return data
 }
 
+/**
+ * Búsqueda JQL vía API nueva `/search/jql`.
+ * - POST + fieldsByKeys: recomendado por Atlassian; evita URI enormes en GET.
+ * - Si POST devuelve 0 filas o falla, reintenta GET (mismo endpoint).
+ * Si todo devuelve vacío, el caller puede usar fetchIssuesByKeysDirect (GET /issue/{key}).
+ */
 async function fetchIssuesByJql(jira, jql) {
-  const issues = []
-  let nextPageToken
+  const fieldsArr = ['summary', 'status', 'issuetype', 'updated', 'customfield_11815']
   const maxResults = 100
-  /** POST evita límites de URL del GET cuando el JQL es muy largo (muchas keys en `key in (...)`). */
-  const fields = ['summary', 'status', 'issuetype', 'updated', 'customfield_11815']
 
-  while (true) {
-    const body = {
-      jql,
-      maxResults,
-      fields,
-      ...(nextPageToken ? { nextPageToken } : {})
+  async function collectIssues(fetchFn) {
+    const out = []
+    let nextPageToken
+    while (true) {
+      const data = await fetchFn(nextPageToken)
+      const batch = data.issues || []
+      out.push(...batch)
+      if (data.isLast === true || batch.length === 0) break
+      nextPageToken = data.nextPageToken
+      if (!nextPageToken) break
     }
-    const { data } = await jira.post('/search/jql', body)
-
-    const batch = data.issues || []
-    issues.push(...batch)
-
-    if (data.isLast === true || batch.length === 0) break
-    nextPageToken = data.nextPageToken
-    if (!nextPageToken) break
+    return out
   }
 
-  return issues
+  try {
+    const fromPost = await collectIssues(async (token) => {
+      const body = {
+        jql,
+        maxResults,
+        fields: fieldsArr,
+        fieldsByKeys: true,
+        ...(token ? { nextPageToken: token } : {})
+      }
+      const { data } = await jira.post('/search/jql', body)
+      return data
+    })
+    if (fromPost.length > 0) return fromPost
+  } catch (e) {
+    console.warn('[fetchIssuesByJql] POST /search/jql', e?.response?.status, e?.response?.data || e.message)
+  }
+
+  try {
+    return await collectIssues(async (token) => {
+      const { data } = await jira.get('/search/jql', {
+        params: {
+          jql,
+          fields: fieldsArr.join(','),
+          maxResults,
+          ...(token ? { nextPageToken: token } : {})
+        }
+      })
+      return data
+    })
+  } catch (e) {
+    console.warn('[fetchIssuesByJql] GET /search/jql', e?.response?.status, e?.response?.data || e.message)
+    return []
+  }
+}
+
+/** Último recurso: una petición por key (mismo shape que devuelve /search/jql). */
+async function fetchIssuesByKeysDirect(jira, keys) {
+  const fields = 'summary,status,issuetype,updated,customfield_11815'
+  const out = []
+  const concurrency = 12
+  for (let i = 0; i < keys.length; i += concurrency) {
+    const slice = keys.slice(i, i + concurrency)
+    const part = await Promise.all(
+      slice.map(async (key) => {
+        try {
+          const k = encodeURIComponent(String(key).trim())
+          const { data } = await jira.get(`/issue/${k}`, { params: { fields } })
+          if (data?.key && data.fields) {
+            return { key: data.key, fields: data.fields }
+          }
+        } catch (e) {
+          const st = e?.response?.status
+          if (st && st !== 404) {
+            console.warn('[fetchIssuesByKeysDirect]', key, st, e?.response?.data?.errorMessages || '')
+          }
+        }
+        return null
+      })
+    )
+    out.push(...part.filter(Boolean))
+  }
+  return out
 }
 
 app.get('/api/health', (_req, res) => {
@@ -623,9 +684,18 @@ app.get('/api/issues', async (req, res) => {
       const chunkSize = 50
       for (let i = 0; i < keys.length; i += chunkSize) {
         const chunk = keys.slice(i, i + chunkSize)
-        const quoted = chunk.map((k) => `"${String(k).trim().replace(/"/g, '')}"`).join(', ')
+        const clean = chunk.map((k) => String(k).trim().replace(/"/g, '')).filter(Boolean)
+        const quoted = clean.map((k) => `"${k}"`).join(', ')
         jql = `key in (${quoted})`
-        const batchIssues = await fetchIssuesByJql(jira, jql)
+        let batchIssues = await fetchIssuesByJql(jira, jql)
+        if (batchIssues.length === 0 && clean.length > 0) {
+          jql = `key in (${clean.join(', ')})`
+          batchIssues = await fetchIssuesByJql(jira, jql)
+        }
+        if (batchIssues.length === 0 && clean.length > 0) {
+          console.warn('[GET /api/issues] búsqueda JQL sin resultados; fallback GET /issue/{key}, muestra:', clean.length)
+          batchIssues = await fetchIssuesByKeysDirect(jira, clean)
+        }
         issues.push(...batchIssues)
       }
     } else if (JIRA_PROJECT_KEY) {
