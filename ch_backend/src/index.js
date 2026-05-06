@@ -152,16 +152,17 @@ async function fetchIssuesByJql(jira, jql) {
   const issues = []
   let nextPageToken
   const maxResults = 100
+  /** POST evita límites de URL del GET cuando el JQL es muy largo (muchas keys en `key in (...)`). */
+  const fields = ['summary', 'status', 'issuetype', 'updated', 'customfield_11815']
 
   while (true) {
-    const { data } = await jira.get('/search/jql', {
-      params: {
-        jql,
-        fields: 'summary,status,issuetype,updated,customfield_11815',
-        maxResults,
-        ...(nextPageToken ? { nextPageToken } : {})
-      }
-    })
+    const body = {
+      jql,
+      maxResults,
+      fields,
+      ...(nextPageToken ? { nextPageToken } : {})
+    }
+    const { data } = await jira.post('/search/jql', body)
 
     const batch = data.issues || []
     issues.push(...batch)
@@ -622,7 +623,8 @@ app.get('/api/issues', async (req, res) => {
       const chunkSize = 50
       for (let i = 0; i < keys.length; i += chunkSize) {
         const chunk = keys.slice(i, i + chunkSize)
-        jql = `key in (${chunk.join(',')})`
+        const quoted = chunk.map((k) => `"${String(k).trim().replace(/"/g, '')}"`).join(', ')
+        jql = `key in (${quoted})`
         const batchIssues = await fetchIssuesByJql(jira, jql)
         issues.push(...batchIssues)
       }

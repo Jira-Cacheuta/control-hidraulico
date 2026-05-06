@@ -5817,7 +5817,13 @@ function App() {
         return
       }
 
-      setDiagramDataError(null)
+      if (data.issues.length === 0 && keysParam.length > 0) {
+        setDiagramDataError(
+          'Jira devolvió 0 incidencias para las keys del diagrama. Revisá en el servidor: pm2 logs ch-backend — suele ser la búsqueda JQL, permisos de la cuenta de la API o cambios en la API de Jira.'
+        )
+      } else {
+        setDiagramDataError(null)
+      }
 
       const waterLinksData = waterLinksRes.ok
         ? await waterLinksRes.json().catch(() => null)
