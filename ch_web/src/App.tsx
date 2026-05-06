@@ -1,4 +1,4 @@
-import { Box, Container, Heading, Text, useToast, Flex, Divider, useBreakpointValue, Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody, ModalFooter, Button, SimpleGrid, Badge, HStack, FormControl, FormLabel, Select, Input, Textarea, Stack, Spinner } from '@chakra-ui/react'
+import { Box, Container, Heading, Text, useToast, Flex, Divider, useBreakpointValue, Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody, ModalFooter, Button, SimpleGrid, Badge, HStack, FormControl, FormLabel, Select, Input, Textarea, Stack, Spinner, Alert, AlertIcon, AlertTitle, AlertDescription } from '@chakra-ui/react'
 import ReactFlow, { Background, useNodesState, useEdgesState } from 'reactflow'
 import { nodeTypes } from './nodes/CustomNodes'
 import { CH_PWA_UPDATE_EVENT, checkForServiceWorkerUpdate, reloadAppWithNewServiceWorker } from './pwaRegister'
@@ -4778,6 +4778,8 @@ function DataRefreshToolbarButton({ onRefresh }: { onRefresh: () => void }) {
 function App() {
   const toast = useToast()
   const [manualRefreshTick, setManualRefreshTick] = useState(0)
+  /** Si no es null, el poll de `/api/issues` falló o devolvió datos inválidos: el diagrama se ve sin estados. */
+  const [diagramDataError, setDiagramDataError] = useState<string | null>(null)
 
   const bumpManualDataRefresh = useCallback(() => {
     checkForServiceWorkerUpdate()
@@ -5787,7 +5789,36 @@ function App() {
         fetch(issuesUrl),
         fetch(`${API_BASE_URL}/api/water-feeds?t=${Date.now()}`, { cache: 'no-store' })
       ])
-      const data = await issuesRes.json()
+
+      let data: { issues?: unknown; error?: unknown }
+      try {
+        data = await issuesRes.json()
+      } catch {
+        setDiagramDataError(
+          `Respuesta no válida al pedir estados (${issuesRes.status}). Suele pasar si /api no llega al backend (404 con HTML) o hay un proxy mal configurado.`
+        )
+        return
+      }
+
+      if (!issuesRes.ok) {
+        const raw = data?.error
+        const errMsg =
+          typeof raw === 'string'
+            ? raw
+            : Array.isArray(raw)
+              ? raw.join(', ')
+              : `HTTP ${issuesRes.status}`
+        setDiagramDataError(`No se pudieron cargar los estados desde el servidor: ${errMsg}`)
+        return
+      }
+
+      if (!Array.isArray(data.issues)) {
+        setDiagramDataError('El servidor respondió sin la lista de incidencias (issues). Revisá el backend y los logs.')
+        return
+      }
+
+      setDiagramDataError(null)
+
       const waterLinksData = waterLinksRes.ok
         ? await waterLinksRes.json().catch(() => null)
         : null
@@ -5910,8 +5941,8 @@ function App() {
       setPozo19Nodes(applyIssueData)
       setPozoLaloNodes(applyIssueData)
       setPozoLuisaNodes(applyIssueData)
-    } catch {
-      // Silenciar errores de polling
+    } catch (e) {
+      setDiagramDataError(`Error de red o al leer datos: ${e instanceof Error ? e.message : String(e)}`)
     }
   }, [fetchPumpsBatch, setGrutaNodes, setCucufateNodes, setHidroNodes, setGruta2Nodes, setGruta3Nodes, setGruta4Nodes, setFangoEsteNodes, setFangoOesteNodes, setAljibeFangoNodes, setAscensorNodes, setCacheutinaNodes, setChorroCacheutinaNodes, setCascadaNodes, setAguaFriaNodes, setParqueArriba1Nodes, setParqueBtv2Nodes, setParqueJfv3Nodes, setParqueDuchas4Nodes, setParqueAguaTibiaNodes, setParqueInteractivoNodes, setParqueBurbujaNodes, setParqueLosaRadianteNodes, setParqueBurbujaBanosNodes, setParqueBurbujaExtNodes, setParqueMedialunaExtNodes, setParqueCascadaNodes, setParqueSala1Nodes, setParqueSala2Nodes, setParqueSala3Nodes, setParqueSala4Nodes, setParqueTobogan3Nodes, setParqueCascadaOlasNodes, setParqueChorrosOlasNodes, setParqueAguaFriaParqueNodes, setPozo19Nodes, setPozoLaloNodes, setPozoLuisaNodes])
 
@@ -8493,6 +8524,15 @@ function App() {
             display="flex"
             flexDirection="column"
           >
+            {diagramDataError && (
+              <Alert status="error" flexShrink={0} borderRadius={0} fontSize="sm" py={2} px={3}>
+                <AlertIcon />
+                <Box>
+                  <AlertTitle fontSize="sm">Estados del diagrama no disponibles</AlertTitle>
+                  <AlertDescription>{diagramDataError}</AlertDescription>
+                </Box>
+              </Alert>
+            )}
             <Box flex={1} minH={0} position="relative">
               <ReactFlow
                 nodeTypes={nodeTypes}
@@ -9156,6 +9196,15 @@ function App() {
             </Box>
             ) : (
             <Box position="absolute" inset={0} display="flex" flexDirection="column">
+              {diagramDataError && (
+                <Alert status="error" flexShrink={0} borderRadius={0} fontSize="sm" py={2} px={3}>
+                  <AlertIcon />
+                  <Box>
+                    <AlertTitle fontSize="sm">Estados del diagrama no disponibles</AlertTitle>
+                    <AlertDescription>{diagramDataError}</AlertDescription>
+                  </Box>
+                </Alert>
+              )}
               <Box flex={1} minH={0} position="relative">
                 <ReactFlow
                   nodeTypes={nodeTypes}
