@@ -164,7 +164,7 @@ async function fetchIssuesByJql(jira, jql) {
     let nextPageToken
     while (true) {
       const data = await fetchFn(nextPageToken)
-      const batch = data.issues || []
+      const batch = data.issues || data.values || []
       out.push(...batch)
       if (data.isLast === true || batch.length === 0) break
       nextPageToken = data.nextPageToken
@@ -677,92 +677,134 @@ async function mapInBatches(items, batchSize, fn) {
   return out
 }
 
+/** Carga issues desde Jira y devuelve la lista normalizada para el diagrama. */
+async function fetchAndNormalizeIssuesList(jira, keys) {
+  let jql = ''
+  const issues = []
+
+  if (keys.length > 0) {
+    const chunkSize = 50
+    for (let i = 0; i < keys.length; i += chunkSize) {
+      const chunk = keys.slice(i, i + chunkSize)
+      const clean = chunk.map((k) => String(k).trim().replace(/"/g, '')).filter(Boolean)
+      const quoted = clean.map((k) => `"${k}"`).join(', ')
+      jql = `key in (${quoted})`
+      let batchIssues = await fetchIssuesByJql(jira, jql)
+      if (batchIssues.length === 0 && clean.length > 0) {
+        jql = `key in (${clean.join(', ')})`
+        batchIssues = await fetchIssuesByJql(jira, jql)
+      }
+      if (batchIssues.length === 0 && clean.length > 0) {
+        console.warn('[api/issues] JQL sin resultados; fallback GET /issue/{key}, muestra:', clean.length)
+        batchIssues = await fetchIssuesByKeysDirect(jira, clean)
+      }
+      issues.push(...batchIssues)
+    }
+  } else if (JIRA_PROJECT_KEY) {
+    jql = `project = ${JIRA_PROJECT_KEY} ORDER BY updated DESC`
+    issues.push(...(await fetchIssuesByJql(jira, jql)))
+  } else {
+    const err = new Error('Configurar JIRA_ISSUE_KEYS o JIRA_PROJECT_KEY')
+    err.statusCode = 400
+    throw err
+  }
+
+  const rawFetched = issues.length
+  const unique = new Map()
+  for (const issue of issues) {
+    if (issue?.key && !unique.has(issue.key)) unique.set(issue.key, issue)
+  }
+
+  const epicFieldId = await getEpicFieldId(jira)
+  const issuesList = Array.from(unique.values())
+
+  for (const wfKey of WATER_FIELD_ISSUE_KEYS) {
+    const issue = issuesList.find((i) => i.key === wfKey)
+    if (!issue?.fields) continue
+    try {
+      const { data } = await jira.get(`/issue/${encodeURIComponent(wfKey)}`, {
+        params: { fields: 'customfield_11815' }
+      })
+      if (data?.fields && Object.prototype.hasOwnProperty.call(data.fields, 'customfield_11815')) {
+        issue.fields.customfield_11815 = data.fields.customfield_11815
+      }
+    } catch (_) {
+      /* campo opcional */
+    }
+  }
+
+  const normalized = await mapInBatches(issuesList, 6, async (issue) => {
+    const base = {
+      key: issue.key,
+      summary: issue.fields?.summary,
+      status: {
+        name: issue.fields?.status?.name,
+        category: issue.fields?.status?.statusCategory?.name
+      },
+      issueType: issue.fields?.issuetype?.name,
+      updated: issue.fields?.updated,
+      customfield_11815: issue.fields?.customfield_11815
+    }
+    const t = issue.fields?.issuetype?.name
+    if (!EQUIPMENT_ISSUE_TYPES_FOR_ENRICH.includes(t)) {
+      return { ...base, epicKey: null, epicSummary: null, blocksPuesto: null }
+    }
+    try {
+      const extra = await enrichEquipmentIssueForList(jira, issue.key, epicFieldId)
+      return { ...base, ...extra }
+    } catch (_) {
+      return { ...base, epicKey: null, epicSummary: null, blocksPuesto: null }
+    }
+  })
+
+  return { normalized, meta: { keysRequested: keys.length, rawFetched, distinctKeys: issuesList.length } }
+}
+
+function sendIssuesJson(res, payload) {
+  const { normalized, meta } = payload
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private')
+  res.setHeader('Pragma', 'no-cache')
+  if (meta) {
+    res.setHeader('X-CH-Keys-Requested', String(meta.keysRequested))
+    res.setHeader('X-CH-Jira-Raw-Fetched', String(meta.rawFetched))
+    res.setHeader('X-CH-Jira-Distinct', String(meta.distinctKeys))
+  }
+  res.json({ issues: normalized })
+}
+
 app.get('/api/issues', async (req, res) => {
   try {
     const jira = getJiraClient()
     const keys = parseKeys(req.query.keys || JIRA_ISSUE_KEYS)
-    let jql = ''
-    const issues = []
-
-    if (keys.length > 0) {
-      const chunkSize = 50
-      for (let i = 0; i < keys.length; i += chunkSize) {
-        const chunk = keys.slice(i, i + chunkSize)
-        const clean = chunk.map((k) => String(k).trim().replace(/"/g, '')).filter(Boolean)
-        const quoted = clean.map((k) => `"${k}"`).join(', ')
-        jql = `key in (${quoted})`
-        let batchIssues = await fetchIssuesByJql(jira, jql)
-        if (batchIssues.length === 0 && clean.length > 0) {
-          jql = `key in (${clean.join(', ')})`
-          batchIssues = await fetchIssuesByJql(jira, jql)
-        }
-        if (batchIssues.length === 0 && clean.length > 0) {
-          console.warn('[GET /api/issues] búsqueda JQL sin resultados; fallback GET /issue/{key}, muestra:', clean.length)
-          batchIssues = await fetchIssuesByKeysDirect(jira, clean)
-        }
-        issues.push(...batchIssues)
-      }
-    } else if (JIRA_PROJECT_KEY) {
-      jql = `project = ${JIRA_PROJECT_KEY} ORDER BY updated DESC`
-      issues.push(...(await fetchIssuesByJql(jira, jql)))
-    } else {
-      return res.status(400).json({ error: 'Configurar JIRA_ISSUE_KEYS o JIRA_PROJECT_KEY' })
-    }
-
-    const unique = new Map()
-    for (const issue of issues) {
-      if (issue?.key && !unique.has(issue.key)) unique.set(issue.key, issue)
-    }
-
-    const epicFieldId = await getEpicFieldId(jira)
-    const issuesList = Array.from(unique.values())
-
-    for (const wfKey of WATER_FIELD_ISSUE_KEYS) {
-      const issue = issuesList.find((i) => i.key === wfKey)
-      if (!issue?.fields) continue
-      try {
-        const { data } = await jira.get(`/issue/${encodeURIComponent(wfKey)}`, {
-          params: { fields: 'customfield_11815' }
-        })
-        if (data?.fields && Object.prototype.hasOwnProperty.call(data.fields, 'customfield_11815')) {
-          issue.fields.customfield_11815 = data.fields.customfield_11815
-        }
-      } catch (_) {
-        /* campo opcional */
-      }
-    }
-
-    const normalized = await mapInBatches(issuesList, 6, async (issue) => {
-      const base = {
-        key: issue.key,
-        summary: issue.fields?.summary,
-        status: {
-          name: issue.fields?.status?.name,
-          category: issue.fields?.status?.statusCategory?.name
-        },
-        issueType: issue.fields?.issuetype?.name,
-        updated: issue.fields?.updated,
-        customfield_11815: issue.fields?.customfield_11815
-      }
-      const t = issue.fields?.issuetype?.name
-      if (!EQUIPMENT_ISSUE_TYPES_FOR_ENRICH.includes(t)) {
-        return { ...base, epicKey: null, epicSummary: null, blocksPuesto: null }
-      }
-      try {
-        const extra = await enrichEquipmentIssueForList(jira, issue.key, epicFieldId)
-        return { ...base, ...extra }
-      } catch (_) {
-        return { ...base, epicKey: null, epicSummary: null, blocksPuesto: null }
-      }
-    })
-
-    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private')
-    res.setHeader('Pragma', 'no-cache')
-    res.json({ issues: normalized })
+    const payload = await fetchAndNormalizeIssuesList(jira, keys)
+    sendIssuesJson(res, payload)
   } catch (error) {
+    const code = error.statusCode || 500
     const message = error?.response?.data?.errorMessages || error?.response?.data?.errors?.join?.(' ') || error?.message
     console.error('[GET /api/issues]', message, error?.response?.status, error?.response?.data)
-    res.status(500).json({ error: message })
+    res.status(code).json({ error: message })
+  }
+})
+
+/** Igual que GET pero keys en el cuerpo: evita truncar la query en proxies (lista larga de keys). */
+app.post('/api/issues', async (req, res) => {
+  try {
+    const jira = getJiraClient()
+    let keys = []
+    if (Array.isArray(req.body?.keys)) {
+      keys = req.body.keys.map((k) => String(k).trim().replace(/"/g, '')).filter(Boolean)
+    } else if (req.body?.keys != null && typeof req.body.keys === 'string') {
+      keys = parseKeys(req.body.keys)
+    } else {
+      keys = parseKeys(JIRA_ISSUE_KEYS)
+    }
+    const payload = await fetchAndNormalizeIssuesList(jira, keys)
+    sendIssuesJson(res, payload)
+  } catch (error) {
+    const code = error.statusCode || 500
+    const message = error?.response?.data?.errorMessages || error?.response?.data?.errors?.join?.(' ') || error?.message
+    console.error('[POST /api/issues]', message, error?.response?.status, error?.response?.data)
+    res.status(code).json({ error: message })
   }
 })
 

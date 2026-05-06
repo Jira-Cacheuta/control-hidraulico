@@ -5786,13 +5786,14 @@ function App() {
       for (const v of Object.values(pumpsMap)) {
         if (typeof v === 'string' && v.trim()) keySet.add(v.trim())
       }
-      const keysParam = Array.from(keySet).join(',')
-      const issuesUrl =
-        keysParam.length > 0
-          ? `${API_BASE_URL}/api/issues?keys=${encodeURIComponent(keysParam)}`
-          : `${API_BASE_URL}/api/issues`
+      const keyArray = Array.from(keySet)
       const [issuesRes, waterLinksRes] = await Promise.all([
-        fetch(issuesUrl, { cache: 'no-store' }),
+        fetch(`${API_BASE_URL}/api/issues`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ keys: keyArray }),
+          cache: 'no-store'
+        }),
         fetch(`${API_BASE_URL}/api/water-feeds?t=${Date.now()}`, { cache: 'no-store' })
       ])
 
@@ -5823,9 +5824,9 @@ function App() {
         return
       }
 
-      if (data.issues.length === 0 && keysParam.length > 0) {
+      if (data.issues.length === 0 && keyArray.length > 0) {
         setDiagramDataError(
-          'Jira devolvió 0 incidencias para las keys del diagrama. Revisá en el servidor: pm2 logs ch-backend — suele ser la búsqueda JQL, permisos de la cuenta de la API o cambios en la API de Jira.'
+          'Jira devolvió 0 incidencias para las keys del diagrama. En Red → clic en la petición issues → Encabezados: mirá X-CH-Jira-Raw-Fetched (0 = Jira no devolvió filas). Revisá pm2 logs ch-backend, JIRA_BASE_URL y permisos de la API.'
         )
       } else {
         setDiagramDataError(null)
