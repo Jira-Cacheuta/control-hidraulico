@@ -242,7 +242,9 @@ String createProbForEpic(Map args) {
         .body(new JsonBuilder([fields: [(CF_CAUSA): [id: id]]]).toString()).asString()
     }
   }
-  transitionToCategory(probKey, 'indeterminate') // En curso
+  if (!transitionTo(probKey, "En curso")){
+    AUD("⚠️ No pude transicionar ${probKey} a 'En curso'. Revisá transitions disponibles.")
+  }
   return probKey
 }
 void updateProbVerified(String probKey, String epicSummary, String causaLabelOrNull, String newDescOrNull) {
@@ -255,7 +257,9 @@ void updateProbVerified(String probKey, String epicSummary, String causaLabelOrN
   put("/rest/api/2/issue/${probKey}")
     .header("Content-Type","application/json")
     .body(new JsonBuilder([fields: fields]).toString()).asString()
-  transitionToCategory(probKey, 'indeterminate') // En curso
+  if (!transitionTo(probKey, "En curso")) {
+    AUD("⚠️ No pude transicionar ${probKey} a 'En curso'. Revisá transitions disponibles.")
+  }
 }
 List<String> linkAllRedServicesToProb(String epicKey, String probKey) {
   def jql = """
@@ -366,12 +370,14 @@ def epicCoreAllGreen = { String epicKey, int maxHops = 6 ->
   }
 }
 
-// Decide la Causa — incluye Llaves / Válvula solenoide / Pulsador
+// Decide la Causa — incluye Llaves / Válvula solenoide / Pulsador / Lanchón / Filtro
 def causaFromContext = { String originKey, String originType ->
   switch (originType) {
     case "Bomba":              return "Bomba"
     case "Comp Eléctrico":     return "Eléctrico general"
     case "Soplador":           return "Soplador"
+    case "Lanchón":            return "Lanchón"
+    case "Filtro":             return "Filtro"
     case "Motor":              return "Motor"
     case "Válvula solenoide":  return "Válvula solenoide"
     case "Pulsador":           return "Pulsador"

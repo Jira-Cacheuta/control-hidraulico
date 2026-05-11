@@ -4445,6 +4445,64 @@ type DiagramIssueMeta = {
   epicKey?: string | null
   epicSummary?: string | null
   blocksPuesto?: boolean | null
+  /** Nombre del estado en Jira (ej. 🟥 🟨 🟩) para semáforo en lista de sistemas. */
+  statusName?: string | null
+}
+
+type TrafficRollupTier = 'red' | 'yellow' | 'green' | 'other' | 'unknown'
+
+function trafficRollupTierFromJiraStatus(status: string | undefined): TrafficRollupTier {
+  const s = (status ?? '').trim()
+  if (!s) return 'unknown'
+  if (s === '🟥' || /red|rojo/i.test(s)) return 'red'
+  if (s === '🟨' || /yellow|amarillo/i.test(s)) return 'yellow'
+  if (s === '🟩' || /green|verde/i.test(s)) return 'green'
+  return 'other'
+}
+
+function diagramNodeTrafficRollupTier(
+  node: Node,
+  diagramIssuesByKey: Record<string, DiagramIssueMeta>,
+  puestoActivePumps: Record<string, string | null>
+): TrafficRollupTier {
+  const raw = (node.data as { issueKey?: string } | undefined)?.issueKey?.trim()
+  if (!raw) return 'unknown'
+  const keys =
+    node.type === 'pump'
+      ? Array.from(new Set([getEffectivePumpIssueKey(node.id, raw, puestoActivePumps), raw]))
+      : [raw]
+  let status: string | undefined
+  for (const k of keys) {
+    const sn = diagramIssuesByKey[k]?.statusName
+    if (sn != null && String(sn).trim() !== '') {
+      status = String(sn).trim()
+      break
+    }
+  }
+  return trafficRollupTierFromJiraStatus(status)
+}
+
+/** Semáforo del sistema en lista: 🟥 si algún componente rojo; si no, 🟨 si alguno amarillo; si todos verdes, 🟩. */
+function sistemasListTrafficEmojiForSystem(
+  systemId: string,
+  diagramIssuesByKey: Record<string, DiagramIssueMeta>,
+  puestoActivePumps: Record<string, string | null>
+): '🟥' | '🟨' | '🟩' | null {
+  const bundle = ALL_SYSTEM_NODES.find((x) => x.systemId === systemId)
+  if (!bundle) return null
+  const tiers: TrafficRollupTier[] = []
+  for (const node of bundle.nodes) {
+    const raw = (node.data as { issueKey?: string } | undefined)?.issueKey?.trim()
+    if (!raw) continue
+    tiers.push(diagramNodeTrafficRollupTier(node, diagramIssuesByKey, puestoActivePumps))
+  }
+  if (!tiers.length) return null
+  if (tiers.some((t) => t === 'red')) return '🟥'
+  if (tiers.some((t) => t === 'yellow')) return '🟨'
+  if (tiers.some((t) => t === 'unknown')) return null
+  if (tiers.some((t) => t === 'other')) return '🟨'
+  if (tiers.every((t) => t === 'green')) return '🟩'
+  return null
 }
 
 function systemHasSpareMatchingChip(
@@ -5882,7 +5940,8 @@ function App() {
             issueType: issue.issueType,
             epicKey: issue.epicKey ?? null,
             epicSummary: issue.epicSummary ?? null,
-            blocksPuesto: issue.blocksPuesto ?? null
+            blocksPuesto: issue.blocksPuesto ?? null,
+            statusName: issue?.status?.name ?? null
           }
           map.set(issue.key, {
             status: issue?.status?.name,
@@ -7541,6 +7600,7 @@ function App() {
 
   const renderSistemaListRow = (sys: (typeof SYSTEMS)[number]) => {
     const spareHint = spareRecambioHintForSystem(sys.id, hidraulicoEquipQuery, diagramIssuesByKey, puestoActivePumps)
+    const trafficEmoji = sistemasListTrafficEmojiForSystem(sys.id, diagramIssuesByKey, puestoActivePumps)
     return (
       <Box
         key={sys.id}
@@ -7554,14 +7614,23 @@ function App() {
         onClick={() => handleSelectSystem(sys.id)}
         _hover={{ bg: listCardHoverBg }}
       >
-        <Text fontSize="sm" fontWeight="medium" color={listCardText}>
-          {sys.label}
-        </Text>
-        {spareHint ? (
-          <Text fontSize="xs" color={listCardMeta} mt={1} lineHeight="short">
-            {spareHint}
-          </Text>
-        ) : null}
+        <HStack align="flex-start" justify="space-between" spacing={3}>
+          <Box flex={1} minW={0}>
+            <Text fontSize="sm" fontWeight="medium" color={listCardText}>
+              {sys.label}
+            </Text>
+            {spareHint ? (
+              <Text fontSize="xs" color={listCardMeta} mt={1} lineHeight="short">
+                {spareHint}
+              </Text>
+            ) : null}
+          </Box>
+          {trafficEmoji ? (
+            <Text fontSize="sm" lineHeight={1} flexShrink={0} aria-hidden>
+              {trafficEmoji}
+            </Text>
+          ) : null}
+        </HStack>
       </Box>
     )
   }
